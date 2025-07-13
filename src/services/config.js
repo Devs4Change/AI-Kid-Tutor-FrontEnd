@@ -1,6 +1,6 @@
 import axios from "axios";
 
-export const API_BASE_URL = 'https://ai-kid-tutor-api.onrender.com';
+export const API_BASE_URL = "http://localhost:5000";
 
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_BASE_URL || API_BASE_URL,

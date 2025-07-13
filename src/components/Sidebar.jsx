@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
-import { 
-  Home, 
-  BookOpen, 
-  Brain, 
-  Trophy, 
-  Settings, 
-  HelpCircle, 
-  User, 
-  Bell, 
+import React, { useState } from "react";
+import {
+  Home,
+  BookOpen,
+  Brain,
+  Trophy,
+  Settings,
+  HelpCircle,
+  User,
+  Bell,
   Star,
   ChevronDown,
   ChevronUp,
@@ -15,90 +15,87 @@ import {
   MessageCircle,
   LogOut,
   Menu,
-  X
-} from 'lucide-react';
+  X,
+  Shield,
+  Globe,
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-const Sidebar = () => {
+const Sidebar = ({
+  userName,
+  handleLogout,
+  isMobileMenuOpen,
+  setIsMobileMenuOpen,
+}) => {
   const [isExpanded, setIsExpanded] = useState(true);
-  const [activeSection, setActiveSection] = useState('dashboard');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState("dashboard");
   const [expandedMenus, setExpandedMenus] = useState({});
+  const navigate = useNavigate();
 
+  const role =
+    typeof window !== "undefined" ? localStorage.getItem("role") : null;
   const navigationItems = [
     {
-      id: 'dashboard',
-      label: 'Dashboard',
+      id: "home",
+      label: "Back to Home",
+      icon: Globe,
+      path: "/",
+    },
+    {
+      id: "dashboard",
+      label: "Dashboard",
       icon: Home,
-      path: '/dashboard'
+      path: "/dashboard",
     },
+    // Only show Admin Panel if user is admin
+    ...(role === "admin"
+      ? [
+          {
+            id: "admin",
+            label: "Admin Panel",
+            icon: Shield,
+            path: "/dashboard/admin",
+          },
+        ]
+      : []),
     {
-      id: 'lessons',
-      label: 'AI Lessons',
-      icon: BookOpen,
-      path: '/lessons',
-      submenu: [
-        { id: 'basics', label: 'AI Basics', path: '/lessons/basics' },
-        { id: 'robots', label: 'Robots & AI', path: '/lessons/robots' },
-        { id: 'games', label: 'AI Games', path: '/lessons/games' }
-      ]
-    },
-    {
-      id: 'practice',
-      label: 'Practice Zone',
+      id: "practice",
+      label: "Practice Zone",
       icon: Brain,
-      path: '/practice',
+      path: "/practice",
       submenu: [
-        { id: 'quizzes', label: 'Fun Quizzes', path: '/practice/quizzes' },
-        { id: 'coding', label: 'Simple Coding', path: '/practice/coding' },
-        { id: 'projects', label: 'Mini Projects', path: '/practice/projects' }
-      ]
+        { id: "quizzes", label: "Fun Quizzes", path: "/practice/quizzes" },
+        { id: "coding", label: "Simple Coding", path: "/practice/coding" },
+        { id: "projects", label: "Mini Projects", path: "/practice/projects" },
+      ],
     },
     {
-      id: 'games',
-      label: 'AI Games',
+      id: "games",
+      label: "AI Games",
       icon: Gamepad2,
-      path: '/games'
+      path: "/games",
     },
-    {
-      id: 'achievements',
-      label: 'Achievements',
-      icon: Trophy,
-      path: '/achievements'
-    },
-    {
-      id: 'chat',
-      label: 'AI Assistant',
-      icon: MessageCircle,
-      path: '/chat',
-      badge: '2'
-    }
   ];
 
   const userMenuItems = [
     {
-      id: 'profile',
-      label: 'My Profile',
+      id: "profile",
+      label: "My Profile",
       icon: User,
-      path: '/profile'
+      path: "/profile",
     },
     {
-      id: 'settings',
-      label: 'Settings',
+      id: "settings",
+      label: "Settings",
       icon: Settings,
-      path: '/settings'
+      path: "/settings",
     },
-    {
-      id: 'help',
-      label: 'Help & Support',
-      icon: HelpCircle,
-      path: '/help'
-    }
   ];
 
   const toggleMenu = (menuId) => {
-    setExpandedMenus(prev => ({
+    setExpandedMenus((prev) => ({
       ...prev,
-      [menuId]: !prev[menuId]
+      [menuId]: !prev[menuId],
     }));
   };
 
@@ -106,6 +103,8 @@ const Sidebar = () => {
     setActiveSection(item.id);
     if (item.submenu) {
       toggleMenu(item.id);
+    } else if (item.path) {
+      navigate(item.path);
     }
     // Close mobile menu when item is clicked
     if (window.innerWidth < 768) {
@@ -114,12 +113,13 @@ const Sidebar = () => {
   };
 
   const sidebarClasses = `
-    ${isExpanded ? 'w-72' : 'w-20'} 
-    bg-white shadow-xl border-r border-gray-200 
+    ${isExpanded ? "w-64 lg:w-72" : "w-16 lg:w-20"} 
+    bg-white dark:bg-gray-800 shadow-xl border-r border-gray-200 dark:border-gray-700
     transition-all duration-300 ease-in-out
-    flex flex-col h-screen
-    ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-    fixed md:relative z-50
+    flex flex-col h-full
+    ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+    fixed md:relative z-40 top-0 left-0
+    md:min-h-screen
   `;
 
   return (
@@ -127,38 +127,49 @@ const Sidebar = () => {
       {/* Mobile Menu Button */}
       <button
         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        className="md:hidden fixed top-4 left-4 z-50 bg-blue-500 text-white p-2 rounded-lg shadow-lg"
+        className="md:hidden fixed top-4 left-4 z-50 bg-blue-500 text-white p-2 rounded-lg shadow-lg hover:bg-blue-600 transition-colors"
       >
         {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
 
       {/* Mobile Overlay */}
       {isMobileMenuOpen && (
-        <div 
-          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
+        <div
+          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <div className={sidebarClasses}>
+        {/* Spacer for mobile menu button on mobile */}
+        <div className="h-16 md:hidden"></div>
+
         {/* Header */}
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
-            <div className={`flex items-center space-x-3 ${!isExpanded && 'justify-center'}`}>
+            <div
+              className={`flex items-center space-x-3 ${
+                !isExpanded && "justify-center"
+              }`}
+            >
               <div className="bg-gradient-to-br from-blue-500 to-purple-600 p-2 rounded-lg">
                 <Brain className="text-white" size={24} />
               </div>
               {isExpanded && (
                 <div>
-                  <h1 className="text-lg font-bold text-gray-800">AI Kid Tutor</h1>
-                  <p className="text-xs text-gray-500">Learning Made Fun!</p>
+                  <h1 className="text-lg font-bold text-gray-800 dark:text-white">
+                    AI Kid Tutor
+                  </h1>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Learning Made Fun!
+                  </p>
                 </div>
               )}
             </div>
             <button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="hidden md:block p-1 rounded-lg hover:bg-gray-100 transition-colors"
+              className="hidden md:block p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-300"
             >
               {isExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
             </button>
@@ -166,20 +177,48 @@ const Sidebar = () => {
         </div>
 
         {/* User Profile Section */}
-        <div className="p-4 border-b border-gray-200">
-          <div className={`flex items-center ${!isExpanded ? 'justify-center' : 'space-x-3'}`}>
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <div
+            className={`flex items-center ${
+              !isExpanded ? "justify-center" : "space-x-3"
+            }`}
+          >
             <div className="relative">
-              <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                E
-              </div>
-              <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
+              {(() => {
+                const savedProfile = localStorage.getItem("userProfile");
+                const profileData = savedProfile ? JSON.parse(savedProfile) : null;
+                const profileImage = profileData?.avatar;
+                
+                return (
+                  <>
+                    {profileImage ? (
+                      <div className="w-10 h-10 rounded-full overflow-hidden">
+                        <img
+                          src={profileImage}
+                          alt="Profile"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                        {userName ? userName.charAt(0).toUpperCase() : "S"}
+                      </div>
+                    )}
+                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
+                  </>
+                );
+              })()}
             </div>
             {isExpanded && (
-              <div className="flex-1">
-                <p className="font-semibold text-gray-800">Emma Johnson</p>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-800 dark:text-white truncate">
+                  {userName || "Student"}
+                </p>
                 <div className="flex items-center space-x-1">
                   <Star size={12} className="text-yellow-400 fill-current" />
-                  <span className="text-xs text-gray-500">Level 3 Explorer</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Student
+                  </span>
                 </div>
               </div>
             )}
@@ -188,24 +227,32 @@ const Sidebar = () => {
 
         {/* Navigation Menu */}
         <nav className="flex-1 py-4 overflow-y-auto">
-          <div className="space-y-2 px-4">
+          <div className="space-y-1 sm:space-y-2 px-2 sm:px-4">
             {navigationItems.map((item) => (
               <div key={item.id}>
                 <button
                   onClick={() => handleItemClick(item)}
-                  className={`w-full flex items-center justify-between p-3 rounded-lg transition-all duration-200 group ${
+                  className={`w-full flex items-center justify-between p-2 sm:p-3 rounded-lg transition-all duration-200 group ${
                     activeSection === item.id
-                      ? 'bg-blue-100 text-blue-700 shadow-sm'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
+                      ? "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 shadow-sm"
+                      : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-white"
                   }`}
                 >
-                  <div className={`flex items-center ${!isExpanded ? 'justify-center w-full' : 'space-x-3'}`}>
-                    <item.icon size={20} />
+                  <div
+                    className={`flex items-center ${
+                      !isExpanded
+                        ? "justify-center w-full"
+                        : "space-x-2 sm:space-x-3"
+                    }`}
+                  >
+                    <item.icon size={18} className="sm:w-5 sm:h-5" />
                     {isExpanded && (
                       <>
-                        <span className="font-medium">{item.label}</span>
+                        <span className="font-medium text-sm sm:text-base truncate">
+                          {item.label}
+                        </span>
                         {item.badge && (
-                          <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                          <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
                             {item.badge}
                           </span>
                         )}
@@ -214,26 +261,39 @@ const Sidebar = () => {
                   </div>
                   {isExpanded && item.submenu && (
                     <div className="transition-transform duration-200">
-                      {expandedMenus[item.id] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      {expandedMenus[item.id] ? (
+                        <ChevronUp size={14} className="sm:w-4 sm:h-4" />
+                      ) : (
+                        <ChevronDown size={14} className="sm:w-4 sm:h-4" />
+                      )}
                     </div>
                   )}
                 </button>
 
                 {/* Submenu */}
                 {isExpanded && item.submenu && expandedMenus[item.id] && (
-                  <div className="ml-6 mt-2 space-y-1">
+                  <div className="ml-4 sm:ml-6 mt-1 sm:mt-2 space-y-1">
                     {item.submenu.map((subItem) => (
                       <button
                         key={subItem.id}
-                        onClick={() => setActiveSection(subItem.id)}
-                        className={`w-full flex items-center space-x-3 p-2 rounded-lg text-sm transition-colors ${
+                        onClick={() => {
+                          setActiveSection(subItem.id);
+                          if (subItem.path) {
+                            navigate(subItem.path);
+                          }
+                          // Close mobile menu when item is clicked
+                          if (window.innerWidth < 768) {
+                            setIsMobileMenuOpen(false);
+                          }
+                        }}
+                        className={`w-full flex items-center space-x-2 sm:space-x-3 p-2 rounded-lg text-xs sm:text-sm transition-colors ${
                           activeSection === subItem.id
-                            ? 'bg-blue-50 text-blue-600'
-                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+                            ? "bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300"
+                            : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-white"
                         }`}
                       >
-                        <div className="w-2 h-2 bg-current rounded-full opacity-50"></div>
-                        <span>{subItem.label}</span>
+                        <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-current rounded-full opacity-50"></div>
+                        <span className="truncate">{subItem.label}</span>
                       </button>
                     ))}
                   </div>
@@ -244,36 +304,49 @@ const Sidebar = () => {
         </nav>
 
         {/* Bottom Section */}
-        <div className="border-t border-gray-200 p-4 space-y-2">
-          {/* Notifications */}
-          <button className={`w-full flex items-center p-3 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors ${!isExpanded && 'justify-center'}`}>
-            <div className="relative">
-              <Bell size={20} />
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
-            </div>
-            {isExpanded && <span className="ml-3 font-medium">Notifications</span>}
-          </button>
-
+        <div className="border-t border-gray-200 dark:border-gray-700 p-2 sm:p-4 space-y-1 sm:space-y-2">
           {/* User Menu Items */}
           {userMenuItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => setActiveSection(item.id)}
-              className={`w-full flex items-center p-3 rounded-lg transition-colors ${
+              onClick={() => {
+                setActiveSection(item.id);
+                if (item.path) {
+                  navigate(item.path);
+                }
+                // Close mobile menu when item is clicked
+                if (window.innerWidth < 768) {
+                  setIsMobileMenuOpen(false);
+                }
+              }}
+              className={`w-full flex items-center p-2 sm:p-3 rounded-lg transition-colors ${
                 activeSection === item.id
-                  ? 'bg-gray-100 text-gray-800'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
-              } ${!isExpanded && 'justify-center'}`}
+                  ? "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white"
+                  : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-white"
+              } ${!isExpanded && "justify-center"}`}
             >
-              <item.icon size={20} />
-              {isExpanded && <span className="ml-3 font-medium">{item.label}</span>}
+              <item.icon size={18} className="sm:w-5 sm:h-5" />
+              {isExpanded && (
+                <span className="ml-2 sm:ml-3 font-medium text-sm sm:text-base truncate">
+                  {item.label}
+                </span>
+              )}
             </button>
           ))}
 
           {/* Logout */}
-          <button className={`w-full flex items-center p-3 rounded-lg text-red-600 hover:bg-red-50 transition-colors ${!isExpanded && 'justify-center'}`}>
-            <LogOut size={20} />
-            {isExpanded && <span className="ml-3 font-medium">Logout</span>}
+          <button
+            onClick={handleLogout}
+            className={`w-full flex items-center p-2 sm:p-3 rounded-lg text-red-600 hover:bg-red-50 transition-colors ${
+              !isExpanded && "justify-center"
+            }`}
+          >
+            <LogOut size={18} className="sm:w-5 sm:h-5" />
+            {isExpanded && (
+              <span className="ml-2 sm:ml-3 font-medium text-sm sm:text-base">
+                Logout
+              </span>
+            )}
           </button>
         </div>
       </div>

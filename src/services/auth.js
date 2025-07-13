@@ -14,6 +14,7 @@ export const apiLogin = async (payload) => {
     }
 
     const token = response.data.accessToken || response.data.token;
+    const role = response.data.role;
 
     if (!token) {
       console.error("Response structure:", response.data);
@@ -25,6 +26,7 @@ export const apiLogin = async (payload) => {
       data: {
         token: token,
         email: payload.email,
+        role: role,
       },
     };
   } catch (error) {
@@ -39,14 +41,14 @@ export const apiLogin = async (payload) => {
 export const apiResetPassword = async (payload) => {
   try {
     const response = await apiClient.post("/users/reset-password", payload);
-    
+
     if (!response || !response.data) {
       throw new Error("Invalid response from server");
     }
 
     return {
       status: response.status,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error("Reset Password API Error:", {
@@ -59,12 +61,12 @@ export const apiResetPassword = async (payload) => {
 
 export const apiUpdatePassword = async (payload) => {
   const token = localStorage.getItem("token");
-  
+
   try {
     const response = await apiClient.post("/users/update-password", payload, {
       headers: {
         Authorization: `Bearer ${token}`,
-      }
+      },
     });
 
     if (!response || !response.data) {
@@ -73,14 +75,14 @@ export const apiUpdatePassword = async (payload) => {
 
     return {
       status: response.status,
-      data: response.data
+      data: response.data,
     };
   } catch (error) {
     console.error("Update Password API Error:", {
       message: error.message,
       response: error.response?.data,
     });
-    
+
     // If unauthorized, clear the token
     if (error.response?.status === 401) {
       localStorage.removeItem("token");
