@@ -9,6 +9,7 @@ import {
   Star,
   Users,
   Clock,
+  LayoutDashboard,
 } from "lucide-react";
 import { getCourses } from "../services/courses";
 import CourseRating from "../components/CourseRating";
@@ -24,49 +25,52 @@ const CourseDetailsPage = () => {
     const fetchCourse = async () => {
       try {
         setLoading(true);
-        const courses = await getCourses();
+        const token = localStorage.getItem("token");
+        const courses = await getCourses(token);
 
-        // Find the course by ID (handle both string and number IDs)
+        // Find the course by ID (string comparison)
         const foundCourse = courses.find(
           (c) =>
-            c._id === courseId ||
-            c.id === courseId ||
-            c._id === parseInt(courseId) ||
-            c.id === parseInt(courseId)
+            String(c._id) === String(courseId) ||
+            String(c.id) === String(courseId)
         );
 
         if (foundCourse) {
-          // Generate lessons for the found course
-          const currentUserEmail =
-            localStorage.getItem("userEmail") || "anonymous";
-          const completedLessonsKey = `completedLessons_${
-            foundCourse._id || foundCourse.id
-          }_${currentUserEmail}`;
-          const completedLessons = JSON.parse(
-            localStorage.getItem(completedLessonsKey) || "[]"
-          );
-
-          const lessons = Array.from(
-            { length: foundCourse.lessons || 5 },
-            (_, i) => ({
+          // Only show lessons if the course object has a lessons array
+          let lessons = [];
+          if (Array.isArray(foundCourse.lessons)) {
+            const currentUserEmail =
+              localStorage.getItem("userEmail") || "anonymous";
+            const completedLessonsKey = `completedLessons_${
+              foundCourse._id || foundCourse.id
+            }_${currentUserEmail}`;
+            const completedLessons = JSON.parse(
+              localStorage.getItem(completedLessonsKey) || "[]"
+            );
+            lessons = foundCourse.lessons.map((lesson, i) => ({
+              ...lesson,
               id: i + 1,
-              title: `${foundCourse.title} - Lesson ${i + 1}`,
-              duration: `${Math.floor(Math.random() * 10) + 15} min`,
-              completed: completedLessons.includes(i + 1), // Check if lesson is in completed list
-              locked: i > completedLessons.length, // Lock lessons beyond the completed ones
-            })
-          );
+              completed: completedLessons.includes(i + 1),
+              locked: i > 0 && !completedLessons.includes(i),
+            }));
+          }
+          // If lessons is not an array, do not generate placeholder lessons
+          if (!lessons.length) {
+            setError("No lesson content is available for this course.");
+            setLoading(false);
+            return;
+          }
 
           // Add frontend-specific fields
           const courseWithFrontendFields = {
             ...foundCourse,
             id: foundCourse._id || foundCourse.id,
             progress: Math.round(
-              (completedLessons.length / (foundCourse.lessons || 5)) * 100
+              (lessons.filter((l) => l.completed).length / lessons.length) * 100
             ),
             completed:
-              completedLessons.length === (foundCourse.lessons || 5) &&
-              (foundCourse.lessons || 5) > 0,
+              lessons.filter((l) => l.completed).length === lessons.length &&
+              lessons.length > 0,
             unlocked: true,
             color: foundCourse.color || "from-blue-400 to-blue-600",
             thumbnail: foundCourse.thumbnail || "📚",
@@ -146,14 +150,23 @@ const CourseDetailsPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-6">
       <div className="max-w-4xl mx-auto">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate("/courses")}
-          className="flex items-center text-blue-600 mb-6 hover:text-blue-800 transition-colors"
-        >
-          <ChevronLeft size={20} className="mr-1" />
-          Back to Courses
-        </button>
+        {/* Back Button and Dashboard Button */}
+        <div className="flex items-center gap-4 mb-6">
+          <button
+            onClick={() => navigate("/courses")}
+            className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-blue-100 to-blue-300 text-blue-800 font-bold rounded-full shadow-md border border-blue-200 transition-all duration-300 hover:from-blue-200 hover:to-blue-400 hover:shadow-lg hover:text-blue-900 focus:outline-none focus:ring-4 focus:ring-blue-200/50"
+          >
+            <ChevronLeft size={20} className="mr-1" />
+            Back to Courses
+          </button>
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-purple-100 to-purple-300 text-purple-800 font-bold rounded-full shadow-md border border-purple-200 transition-all duration-300 hover:from-purple-200 hover:to-purple-400 hover:shadow-lg hover:text-purple-900 focus:outline-none focus:ring-4 focus:ring-purple-200/50"
+          >
+            <LayoutDashboard size={20} />
+            View Dashboard
+          </button>
+        </div>
 
         {/* Course Header */}
         <div

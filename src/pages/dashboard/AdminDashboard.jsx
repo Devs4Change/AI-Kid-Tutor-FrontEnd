@@ -10,15 +10,19 @@ import {
   Trash2,
   UserPlus,
   Book,
+  Moon,
+  Lock,
+  Key,
 } from "lucide-react";
 import {
   getCourses,
   createCourse,
-  updateCourse,
+  updateCourseDuration,
   deleteCourse,
 } from "../../services/courses";
 import {
   getUsers,
+  getUser,
   createUser,
   updateUser,
   deleteUser,
@@ -83,7 +87,6 @@ const mockAnalytics = {
 
 const TABS = [
   { id: "users", label: "Users", icon: Users },
-  { id: "lessons", label: "Lessons", icon: BookOpen },
   { id: "courses", label: "Courses", icon: Book },
   { id: "achievements", label: "Achievements", icon: Trophy },
   { id: "activity", label: "Recent Activity", icon: BarChart2 },
@@ -107,6 +110,33 @@ const AdminDashboard = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [formData, setFormData] = useState({});
+  const [addItemType, setAddItemType] = useState("user");
+
+  // New state hooks for Settings tab
+  const [settingsSection, setSettingsSection] = useState("profile");
+  const [adminName, setAdminName] = useState(
+    localStorage.getItem("adminName") || "Admin User"
+  );
+  const [adminEmail, setAdminEmail] = useState(
+    localStorage.getItem("userEmail") || "admin@example.com"
+  );
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [theme, setTheme] = useState(localStorage.getItem("theme") || "light");
+  const [platformName, setPlatformName] = useState(
+    localStorage.getItem("platformName") || "AI Kid Tutor"
+  );
+  const [maintenanceMode, setMaintenanceMode] = useState(
+    localStorage.getItem("maintenanceMode") === "true"
+  );
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordChanged, setPasswordChanged] = useState(false);
+  const [apiKey, setApiKey] = useState(
+    localStorage.getItem("apiKey") || "sk-1234-FAKE-KEY-5678"
+  );
+  const [apiKeyCopied, setApiKeyCopied] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
 
   const token = localStorage.getItem("token");
 
@@ -196,11 +226,13 @@ const AdminDashboard = () => {
 
         if (activeTab === "courses") {
           setCoursesLoading(true);
-          const data = await getCourses();
+          const token = localStorage.getItem("token");
+          const data = await getCourses(token);
           setCourses(data);
         } else if (activeTab === "users") {
           setUsersLoading(true);
-          const data = await getUsers();
+          const token = localStorage.getItem("token");
+          const data = await getUsers(token);
           setUsers(data);
         } else if (activeTab === "achievements") {
           setAchievementsLoading(true);
@@ -220,6 +252,29 @@ const AdminDashboard = () => {
     fetchData();
   }, [activeTab]);
 
+  // Persist profile
+  useEffect(() => {
+    localStorage.setItem("adminName", adminName);
+    localStorage.setItem("userEmail", adminEmail);
+  }, [adminName, adminEmail]);
+  // Persist theme
+  useEffect(() => {
+    localStorage.setItem("theme", theme);
+    document.body.classList.toggle("dark", theme === "dark");
+  }, [theme]);
+  // Persist platform name
+  useEffect(() => {
+    localStorage.setItem("platformName", platformName);
+  }, [platformName]);
+  // Persist maintenance mode
+  useEffect(() => {
+    localStorage.setItem("maintenanceMode", maintenanceMode);
+  }, [maintenanceMode]);
+  // Persist API key
+  useEffect(() => {
+    localStorage.setItem("apiKey", apiKey);
+  }, [apiKey]);
+
   // CRUD Functions
   const handleAdd = async (itemType) => {
     try {
@@ -231,7 +286,18 @@ const AdminDashboard = () => {
           setUsers([...users, newItem]);
           break;
         case "course":
-          newItem = await createCourse(formData, token);
+          newItem = await createCourse(
+            {
+              title: formData.title,
+              description: formData.description,
+              category: formData.category,
+              level: formData.level,
+              duration: formData.duration,
+              lessons: formData.lessons || [],
+              status: formData.status || "Draft",
+            },
+            token
+          );
           setCourses([...courses, newItem]);
           break;
         case "achievement":
@@ -265,14 +331,24 @@ const AdminDashboard = () => {
       let updatedItem;
       switch (itemType) {
         case "user":
-          updatedItem = await updateUser(id, formData, token);
-          setUsers(users.map((user) => (user._id === id ? updatedItem : user)));
+          // Use _id if present, otherwise id
+          const userToUpdate = users.find(
+            (user) => user.id === id || user._id === id
+          );
+          const userId = userToUpdate?._id || userToUpdate?.id || id;
+          updatedItem = await updateUser(userId, formData, token);
+          setUsers(
+            users.map((user) =>
+              user._id === userId || user.id === userId ? updatedItem : user
+            )
+          );
           break;
         case "course":
-          updatedItem = await updateCourse(id, formData, token);
-          setCourses(
-            courses.map((course) => (course._id === id ? updatedItem : course))
-          );
+          await updateCourseDuration(id, formData.duration, token);
+          const updatedCourses = await getCourses(token);
+          setCourses(updatedCourses);
+          setSuccess("Course updated successfully!");
+          setTimeout(() => setSuccess(null), 3000);
           break;
         case "achievement":
           updatedItem = await updateAchievement(id, formData, token);
@@ -295,6 +371,10 @@ const AdminDashboard = () => {
   };
 
   const handleDelete = async (itemType, id) => {
+    if (!id) {
+      setError("Invalid course ID. Cannot delete.");
+      return;
+    }
     if (!window.confirm(`Are you sure you want to delete this ${itemType}?`)) {
       return;
     }
@@ -302,12 +382,20 @@ const AdminDashboard = () => {
     try {
       switch (itemType) {
         case "user":
-          await deleteUser(id, token);
-          setUsers(users.filter((user) => user._id !== id));
+          // Use _id if present, otherwise id
+          const userToDelete = users.find(
+            (user) => user.id === id || user._id === id
+          );
+          const userId = userToDelete?._id || userToDelete?.id || id;
+          await deleteUser(userId, token);
+          setUsers(
+            users.filter((user) => user._id !== userId && user.id !== userId)
+          );
           break;
         case "course":
           await deleteCourse(id, token);
-          setCourses(courses.filter((course) => course._id !== id));
+          const afterDeleteCourses = await getCourses(token);
+          setCourses(afterDeleteCourses);
           break;
         case "achievement":
           await deleteAchievement(id, token);
@@ -325,13 +413,22 @@ const AdminDashboard = () => {
   };
 
   const openEditModal = (item, itemType) => {
+    if (itemType === "course") {
+      setFormData({ duration: item.duration });
+    } else {
+      setFormData(item);
+    }
     setEditingItem(item);
-    setFormData(item);
     setShowEditModal(true);
   };
 
   const openAddModal = (itemType) => {
-    setFormData({});
+    if (itemType === "course") {
+      setFormData({ level: "Beginner" }); // Default to Beginner for course
+    } else {
+      setFormData({});
+    }
+    setAddItemType(itemType);
     setShowAddModal(true);
   };
 
@@ -372,12 +469,7 @@ const AdminDashboard = () => {
               <h2 className="text-lg sm:text-xl font-bold text-blue-700">
                 User Management
               </h2>
-              <button
-                onClick={() => openAddModal("user")}
-                className="flex items-center bg-blue-500 text-white px-3 sm:px-4 py-2 rounded-lg font-medium hover:bg-blue-600 text-sm sm:text-base"
-              >
-                <UserPlus className="w-4 h-4 mr-1 sm:mr-2" /> Add User
-              </button>
+              {/* Removed Add User button */}
             </div>
 
             {error && (
@@ -445,14 +537,9 @@ const AdminDashboard = () => {
                           </td>
                           <td className="py-2 space-x-1 sm:space-x-2">
                             <button
-                              onClick={() => openEditModal(user, "user")}
-                              className="inline-flex items-center px-1 sm:px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
-                            >
-                              <Edit className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                              <span className="hidden sm:inline">Edit</span>
-                            </button>
-                            <button
-                              onClick={() => handleDelete("user", user._id)}
+                              onClick={() =>
+                                handleDelete("user", user._id || user.id)
+                              }
                               className="inline-flex items-center px-1 sm:px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
                             >
                               <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
@@ -466,37 +553,6 @@ const AdminDashboard = () => {
                 </table>
               </div>
             )}
-          </div>
-        )}
-
-        {/* Lessons Tab */}
-        {activeTab === "lessons" && (
-          <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-green-700">
-                Lesson Management
-              </h2>
-              <button className="flex items-center bg-green-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-600">
-                <Plus className="w-4 h-4 mr-2" /> Add Lesson
-              </button>
-            </div>
-            <table className="min-w-full text-left">
-              <thead>
-                <tr className="border-b">
-                  <th className="py-2">Title</th>
-                  <th className="py-2">Level</th>
-                  <th className="py-2">Status</th>
-                  <th className="py-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b hover:bg-green-50">
-                  <td className="py-2 text-gray-500" colSpan="4">
-                    Lessons management coming soon...
-                  </td>
-                </tr>
-              </tbody>
-            </table>
           </div>
         )}
 
@@ -520,6 +576,15 @@ const AdminDashboard = () => {
               </div>
             ) : (
               <div className="overflow-x-auto">
+                {courses.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    No courses found.
+                    {console.log(
+                      "Debug: courses array is empty or not loaded",
+                      courses
+                    )}
+                  </div>
+                )}
                 <table className="min-w-full text-left">
                   <thead>
                     <tr className="border-b">
@@ -532,38 +597,43 @@ const AdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {courses.map((course) => (
-                      <tr
-                        key={course._id || course.id}
-                        className="border-b hover:bg-indigo-50"
-                      >
-                        <td className="py-2 text-xs sm:text-sm">
-                          {course.title}
-                        </td>
-                        <td className="py-2 text-xs sm:text-sm hidden sm:table-cell">
-                          {course.category}
-                        </td>
-                        <td className="py-2 text-xs sm:text-sm">
-                          {course.status}
-                        </td>
-                        <td className="py-2 space-x-1 sm:space-x-2">
-                          <button
-                            onClick={() => openEditModal(course, "course")}
-                            className="inline-flex items-center px-1 sm:px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200"
-                          >
-                            <Edit className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                            <span className="hidden sm:inline">Edit</span>
-                          </button>
-                          <button
-                            onClick={() => handleDelete("course", course._id)}
-                            className="inline-flex items-center px-1 sm:px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
-                          >
-                            <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                            <span className="hidden sm:inline">Delete</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {Array.isArray(courses) &&
+                      courses.map((course) => (
+                        <tr
+                          key={course._id || course.id}
+                          className="border-b hover:bg-indigo-50"
+                        >
+                          <td className="py-2 text-xs sm:text-sm">
+                            {course.title}
+                          </td>
+                          <td className="py-2 text-xs sm:text-sm hidden sm:table-cell">
+                            {course.category}
+                          </td>
+                          <td className="py-2 text-xs sm:text-sm">
+                            {typeof course.status === "string"
+                              ? course.status
+                              : "N/A"}
+                          </td>
+                          <td className="py-2 space-x-1 sm:space-x-2">
+                            <button
+                              onClick={() => openEditModal(course, "course")}
+                              className="inline-flex items-center px-1 sm:px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200"
+                            >
+                              <Edit className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+                              <span className="hidden sm:inline">Edit</span>
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleDelete("course", course.id || course._id)
+                              }
+                              className="inline-flex items-center px-1 sm:px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
+                            >
+                              <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+                              <span className="hidden sm:inline">Delete</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
@@ -760,23 +830,253 @@ const AdminDashboard = () => {
 
         {/* Settings Tab */}
         {activeTab === "settings" && (
-          <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-            <h2 className="text-xl font-bold text-gray-700 mb-4">
-              Platform Settings
-            </h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span>Maintenance Mode</span>
-                <button className="bg-gray-200 px-4 py-2 rounded-lg text-gray-700 font-medium">
-                  Off
+          <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl shadow-lg p-0 mb-8 max-w-3xl mx-auto flex flex-col md:flex-row">
+            {/* Sidebar Navigation */}
+            <div className="w-full md:w-1/4 border-r border-blue-100 bg-white rounded-l-xl flex flex-row md:flex-col">
+              {[
+                { id: "profile", label: "Profile", icon: UserPlus },
+                { id: "theme", label: "Theme", icon: Moon },
+                { id: "security", label: "Security", icon: Lock },
+                { id: "platform", label: "Platform", icon: BookOpen },
+                { id: "api", label: "API Keys", icon: Key },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setSettingsSection(item.id)}
+                  className={`flex items-center gap-2 px-4 py-3 w-full text-left font-medium transition-colors border-b md:border-b-0 md:border-r-0 md:border-l-4 md:rounded-none md:rounded-l-xl ${
+                    settingsSection === item.id
+                      ? "bg-blue-50 md:border-blue-500 text-blue-700"
+                      : "hover:bg-blue-50 text-gray-700"
+                  }`}
+                >
+                  <item.icon className="w-5 h-5" />
+                  {item.label}
                 </button>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Send Announcement</span>
-                <button className="bg-blue-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-600">
-                  Send
-                </button>
-              </div>
+              ))}
+            </div>
+            {/* Main Content */}
+            <div className="flex-1 p-8 space-y-8">
+              {/* Profile Section */}
+              {settingsSection === "profile" && (
+                <div className="bg-white rounded-lg shadow p-6 flex flex-col gap-4 border border-blue-100">
+                  <div className="flex items-center gap-4 mb-4">
+                    <img
+                      src={`https://ui-avatars.com/api/?name=${encodeURIComponent(
+                        adminName
+                      )}&background=4f8ef7&color=fff`}
+                      alt="Admin Avatar"
+                      className="w-16 h-16 rounded-full border-2 border-blue-200"
+                    />
+                    <div>
+                      <div className="text-lg font-bold text-gray-800">
+                        {adminName}
+                      </div>
+                      <div className="text-gray-500 text-sm">{adminEmail}</div>
+                    </div>
+                  </div>
+                  {editingProfile ? (
+                    <>
+                      <input
+                        type="text"
+                        value={adminName}
+                        onChange={(e) => setAdminName(e.target.value)}
+                        className="p-2 border border-gray-300 rounded mb-2"
+                      />
+                      <input
+                        type="email"
+                        value={adminEmail}
+                        onChange={(e) => setAdminEmail(e.target.value)}
+                        className="p-2 border border-gray-300 rounded mb-2"
+                      />
+                      <button
+                        onClick={() => setEditingProfile(false)}
+                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 font-medium"
+                      >
+                        Save
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setEditingProfile(true)}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-blue-100 font-medium w-fit"
+                    >
+                      Edit Profile
+                    </button>
+                  )}
+                </div>
+              )}
+              {/* Theme Section */}
+              {settingsSection === "theme" && (
+                <div className="bg-white rounded-lg shadow p-6 flex flex-col gap-4 border border-blue-100 items-center">
+                  <div className="font-semibold text-gray-800 text-lg flex items-center gap-2 mb-2">
+                    <Moon className="w-5 h-5 text-indigo-400" /> Theme
+                  </div>
+                  <button
+                    onClick={() =>
+                      setTheme(theme === "light" ? "dark" : "light")
+                    }
+                    className={`px-6 py-2 rounded-lg font-medium transition-colors focus:outline-none text-lg ${
+                      theme === "dark"
+                        ? "bg-gray-800 text-white"
+                        : "bg-gray-200 text-gray-800"
+                    }`}
+                  >
+                    {theme === "dark" ? "Dark Mode" : "Light Mode"}
+                  </button>
+                  <div className="text-gray-500 text-sm">
+                    Switch between light and dark mode for your dashboard.
+                  </div>
+                </div>
+              )}
+              {/* Security Section */}
+              {settingsSection === "security" && (
+                <div className="bg-white rounded-lg shadow p-6 flex flex-col gap-4 border border-blue-100 max-w-md">
+                  <div className="font-semibold text-gray-800 text-lg flex items-center gap-2 mb-2">
+                    <Lock className="w-5 h-5 text-red-400" /> Change Password
+                  </div>
+                  <input
+                    type="password"
+                    placeholder="Old Password"
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                    className="p-2 border border-gray-300 rounded"
+                  />
+                  <input
+                    type="password"
+                    placeholder="New Password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="p-2 border border-gray-300 rounded"
+                  />
+                  <input
+                    type="password"
+                    placeholder="Confirm New Password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="p-2 border border-gray-300 rounded"
+                  />
+                  <button
+                    onClick={() => {
+                      setPasswordError("");
+                      const storedPassword =
+                        localStorage.getItem("adminPassword") || "admin123";
+                      if (oldPassword !== storedPassword) {
+                        setPasswordError("Old password is incorrect.");
+                        return;
+                      }
+                      if (newPassword !== confirmPassword) {
+                        setPasswordError("Passwords do not match.");
+                        return;
+                      }
+                      localStorage.setItem("adminPassword", newPassword);
+                      setPasswordChanged(true);
+                      setTimeout(() => setPasswordChanged(false), 2000);
+                      setOldPassword("");
+                      setNewPassword("");
+                      setConfirmPassword("");
+                    }}
+                    className="px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 font-medium mt-2"
+                    disabled={!oldPassword || !newPassword || !confirmPassword}
+                  >
+                    Change Password
+                  </button>
+                  {passwordChanged && (
+                    <div className="text-green-600 mt-2 font-medium">
+                      Password changed successfully!
+                    </div>
+                  )}
+                  {passwordError && (
+                    <div className="text-red-600 mt-2 font-medium">
+                      {passwordError}
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* Platform Section */}
+              {settingsSection === "platform" && (
+                <div className="bg-white rounded-lg shadow p-6 flex flex-col gap-4 border border-blue-100">
+                  <div className="font-semibold text-gray-800 text-lg flex items-center gap-2 mb-2">
+                    <BookOpen className="w-5 h-5 text-blue-400" /> Platform Info
+                  </div>
+                  <input
+                    type="text"
+                    value={platformName}
+                    onChange={(e) => setPlatformName(e.target.value)}
+                    className="p-2 border border-gray-300 rounded mb-2"
+                  />
+                  <div className="flex items-center justify-between">
+                    <div className="font-medium text-gray-700">
+                      Maintenance Mode
+                    </div>
+                    <button
+                      onClick={() => setMaintenanceMode(!maintenanceMode)}
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors focus:outline-none ${
+                        maintenanceMode
+                          ? "bg-red-500 text-white hover:bg-red-600"
+                          : "bg-green-500 text-white hover:bg-green-600"
+                      }`}
+                    >
+                      {maintenanceMode ? "Disable" : "Enable"}
+                    </button>
+                  </div>
+                  {maintenanceMode && (
+                    <div className="bg-red-100 text-red-700 rounded-lg p-3 text-center font-semibold mt-2">
+                      Maintenance mode is enabled. Users cannot access the
+                      platform.
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* API Key Section */}
+              {settingsSection === "api" && (
+                <div className="bg-white rounded-lg shadow p-6 flex flex-col gap-4 border border-blue-100 max-w-md">
+                  <div className="font-semibold text-gray-800 text-lg flex items-center gap-2 mb-2">
+                    <Key className="w-5 h-5 text-green-400" /> API Key
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={apiKey}
+                      readOnly
+                      className="flex-1 p-2 border border-gray-300 rounded bg-gray-50 font-mono"
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(apiKey);
+                        setApiKeyCopied(true);
+                        setTimeout(() => setApiKeyCopied(false), 1500);
+                      }}
+                      className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 font-medium"
+                    >
+                      {apiKeyCopied ? "Copied!" : "Copy"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const newKey =
+                          "sk-" +
+                          Math.random()
+                            .toString(36)
+                            .substring(2, 10)
+                            .toUpperCase() +
+                          "-FAKE-" +
+                          Math.random()
+                            .toString(36)
+                            .substring(2, 8)
+                            .toUpperCase();
+                        setApiKey(newKey);
+                        setApiKeyCopied(false);
+                      }}
+                      className="px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 font-medium"
+                    >
+                      Regenerate
+                    </button>
+                  </div>
+                  <div className="text-gray-500 text-xs">
+                    Keep your API key secret. Regenerate if you suspect it has
+                    been compromised.
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -784,107 +1084,140 @@ const AdminDashboard = () => {
         {/* Add Modal */}
         {showAddModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-bold mb-4">
-                Add{" "}
-                {activeTab.slice(0, -1).charAt(0).toUpperCase() +
-                  activeTab.slice(0, -1).slice(1)}
+            <div className="bg-white rounded-lg w-full max-w-md flex flex-col">
+              <h3 className="text-lg font-bold mb-3 px-6 pt-6">
+                Add {addItemType.charAt(0).toUpperCase() + addItemType.slice(1)}
               </h3>
-              <div className="space-y-4">
-                {activeTab === "users" && (
+              <div className="space-y-3 px-6">
+                {addItemType === "course" && (
                   <>
-                    <input
-                      type="text"
-                      placeholder="Name"
-                      value={formData.name || ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, name: e.target.value })
-                      }
-                      className="w-full p-2 border border-gray-300 rounded"
-                    />
-                    <input
-                      type="email"
-                      placeholder="Email"
-                      value={formData.email || ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, email: e.target.value })
-                      }
-                      className="w-full p-2 border border-gray-300 rounded"
-                    />
-                    <input
-                      type="password"
-                      placeholder="Password"
-                      value={formData.password || ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, password: e.target.value })
-                      }
-                      className="w-full p-2 border border-gray-300 rounded"
-                    />
-                    <select
-                      value={formData.role || "student"}
-                      onChange={(e) =>
-                        setFormData({ ...formData, role: e.target.value })
-                      }
-                      className="w-full p-2 border border-gray-300 rounded"
-                    >
-                      <option value="student">Student</option>
-                      <option value="parent">Parent</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                  </>
-                )}
-                {activeTab === "courses" && (
-                  <>
-                    <input
-                      type="text"
-                      placeholder="Title"
-                      value={formData.title || ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, title: e.target.value })
-                      }
-                      className="w-full p-2 border border-gray-300 rounded"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Category"
-                      value={formData.category || ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, category: e.target.value })
-                      }
-                      className="w-full p-2 border border-gray-300 rounded"
-                    />
-                    <select
-                      value={formData.level || "Beginner"}
-                      onChange={(e) =>
-                        setFormData({ ...formData, level: e.target.value })
-                      }
-                      className="w-full p-2 border border-gray-300 rounded"
-                    >
-                      <option value="Beginner">Beginner</option>
-                      <option value="Intermediate">Intermediate</option>
-                      <option value="Advanced">Advanced</option>
-                    </select>
-                    <input
-                      type="text"
-                      placeholder="Duration (e.g., 2 hours)"
-                      value={formData.duration || ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, duration: e.target.value })
-                      }
-                      className="w-full p-2 border border-gray-300 rounded"
-                    />
-                    <input
-                      type="number"
-                      placeholder="Lessons"
-                      value={formData.lessons || ""}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          lessons: parseInt(e.target.value),
-                        })
-                      }
-                      className="w-full p-2 border border-gray-300 rounded"
-                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        placeholder="Title"
+                        value={formData.title || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, title: e.target.value })
+                        }
+                        className="w-full p-2 border border-gray-300 rounded"
+                        required
+                      />
+                      <input
+                        type="text"
+                        placeholder="Category"
+                        value={formData.category || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, category: e.target.value })
+                        }
+                        className="w-full p-2 border border-gray-300 rounded"
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <select
+                        value={formData.level || "Beginner"}
+                        onChange={(e) =>
+                          setFormData({ ...formData, level: e.target.value })
+                        }
+                        className="w-full p-2 border border-gray-300 rounded"
+                        required
+                      >
+                        <option value="Beginner">Beginner</option>
+                        <option value="Intermediate">Intermediate</option>
+                        <option value="Advanced">Advanced</option>
+                      </select>
+                      <select
+                        value={formData.status || "Draft"}
+                        onChange={(e) =>
+                          setFormData({ ...formData, status: e.target.value })
+                        }
+                        className="w-full p-2 border border-gray-300 rounded"
+                        required
+                      >
+                        <option value="Published">Published</option>
+                        <option value="Draft">Draft</option>
+                      </select>
+                      <input
+                        type="text"
+                        placeholder="Duration"
+                        value={formData.duration || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, duration: e.target.value })
+                        }
+                        className="w-full p-2 border border-gray-300 rounded"
+                        required
+                      />
+                    </div>
+                    {/* Dynamic Lessons Array */}
+                    <div className="border rounded p-2">
+                      <div className="font-semibold mb-2 text-sm">Lessons</div>
+                      {(formData.lessons || []).map((lesson, idx) => (
+                        <div key={idx} className="mb-2 border-b pb-2">
+                          <div className="grid grid-cols-2 gap-1 mb-1">
+                            <input
+                              type="text"
+                              placeholder="Lesson Title"
+                              value={lesson.title || ""}
+                              onChange={(e) => {
+                                const updated = [...formData.lessons];
+                                updated[idx].title = e.target.value;
+                                setFormData({ ...formData, lessons: updated });
+                              }}
+                              className="w-full p-1 border border-gray-200 rounded text-sm"
+                              required
+                            />
+                            <input
+                              type="text"
+                              placeholder="Duration"
+                              value={lesson.duration || ""}
+                              onChange={(e) => {
+                                const updated = [...formData.lessons];
+                                updated[idx].duration = e.target.value;
+                                setFormData({ ...formData, lessons: updated });
+                              }}
+                              className="w-full p-1 border border-gray-200 rounded text-sm"
+                            />
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Lesson Content"
+                            value={lesson.content || ""}
+                            onChange={(e) => {
+                              const updated = [...formData.lessons];
+                              updated[idx].content = e.target.value;
+                              setFormData({ ...formData, lessons: updated });
+                            }}
+                            className="w-full p-1 border border-gray-200 rounded text-sm mb-1"
+                          />
+                          <button
+                            type="button"
+                            className="text-xs text-red-500"
+                            onClick={() => {
+                              const updated = [...formData.lessons];
+                              updated.splice(idx, 1);
+                              setFormData({ ...formData, lessons: updated });
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="text-xs text-blue-600 border border-blue-300 rounded px-2 py-1"
+                        onClick={() => {
+                          setFormData({
+                            ...formData,
+                            lessons: [
+                              ...(formData.lessons || []),
+                              { title: "", content: "", duration: "" },
+                            ],
+                          });
+                        }}
+                      >
+                        + Add Lesson
+                      </button>
+                    </div>
                     <textarea
                       placeholder="Description"
                       value={formData.description || ""}
@@ -895,11 +1228,16 @@ const AdminDashboard = () => {
                         })
                       }
                       className="w-full p-2 border border-gray-300 rounded"
-                      rows="3"
+                      rows="2"
+                      required
                     />
+                    <div className="text-xs text-gray-500">
+                      Each lesson requires a title. Content and duration are
+                      optional.
+                    </div>
                   </>
                 )}
-                {activeTab === "achievements" && (
+                {addItemType === "achievement" && (
                   <>
                     <input
                       type="text"
@@ -934,7 +1272,7 @@ const AdminDashboard = () => {
                   </>
                 )}
               </div>
-              <div className="flex justify-end space-x-2 mt-6">
+              <div className="flex justify-end space-x-2 mt-4 px-6 pb-6 bg-white border-t pt-4">
                 <button
                   onClick={() => setShowAddModal(false)}
                   className="px-4 py-2 text-gray-600 hover:text-gray-800"
@@ -942,7 +1280,7 @@ const AdminDashboard = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={() => handleAdd(activeTab.slice(0, -1))}
+                  onClick={() => handleAdd(addItemType)}
                   className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
                 >
                   Add
@@ -999,66 +1337,17 @@ const AdminDashboard = () => {
                   <>
                     <input
                       type="text"
-                      placeholder="Title"
-                      value={formData.title || ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, title: e.target.value })
-                      }
-                      className="w-full p-2 border border-gray-300 rounded"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Category"
-                      value={formData.category || ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, category: e.target.value })
-                      }
-                      className="w-full p-2 border border-gray-300 rounded"
-                    />
-                    <select
-                      value={formData.level || "Beginner"}
-                      onChange={(e) =>
-                        setFormData({ ...formData, level: e.target.value })
-                      }
-                      className="w-full p-2 border border-gray-300 rounded"
-                    >
-                      <option value="Beginner">Beginner</option>
-                      <option value="Intermediate">Intermediate</option>
-                      <option value="Advanced">Advanced</option>
-                    </select>
-                    <input
-                      type="text"
-                      placeholder="Duration (e.g., 2 hours)"
+                      placeholder="Duration (e.g., 8 weeks)"
                       value={formData.duration || ""}
                       onChange={(e) =>
                         setFormData({ ...formData, duration: e.target.value })
                       }
                       className="w-full p-2 border border-gray-300 rounded"
+                      required
                     />
-                    <input
-                      type="number"
-                      placeholder="Lessons"
-                      value={formData.lessons || ""}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          lessons: parseInt(e.target.value),
-                        })
-                      }
-                      className="w-full p-2 border border-gray-300 rounded"
-                    />
-                    <textarea
-                      placeholder="Description"
-                      value={formData.description || ""}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          description: e.target.value,
-                        })
-                      }
-                      className="w-full p-2 border border-gray-300 rounded"
-                      rows="3"
-                    />
+                    <div className="text-xs text-gray-500 mt-1">
+                      Only duration can be updated.
+                    </div>
                   </>
                 )}
                 {activeTab === "achievements" && (
@@ -1105,7 +1394,10 @@ const AdminDashboard = () => {
                 </button>
                 <button
                   onClick={() =>
-                    handleEdit(activeTab.slice(0, -1), editingItem._id)
+                    handleEdit(
+                      activeTab.slice(0, -1),
+                      editingItem._id || editingItem.id
+                    )
                   }
                   className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
                 >

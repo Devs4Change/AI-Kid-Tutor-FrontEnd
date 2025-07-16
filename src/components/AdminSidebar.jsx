@@ -34,7 +34,7 @@ const AdminSidebar = ({
   const adminNavigationItems = [
     {
       id: "home",
-      label: "Back to Home",
+      label: "Home",
       icon: Globe,
       path: "/",
     },

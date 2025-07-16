@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:5000/api/achievements"; // Change if needed
+const API_URL = "https://ai-kid-tutor-api.onrender.com/api/achievements"; // Change if needed
 
 export const getAchievements = async () => {
   const { data } = await axios.get(API_URL);

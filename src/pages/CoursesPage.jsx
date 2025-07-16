@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import {
   BookOpen,
   Star,
@@ -15,26 +16,15 @@ import {
   Lock,
   CheckCircle,
 } from "lucide-react";
+import { getCourses } from "../services/courses";
 
 const CoursesPage = () => {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedLevel, setSelectedLevel] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeChild, setActiveChild] = useState("Emma");
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-
-  const children = [
-    { name: "Emma", age: 8, level: "Beginner", progress: 75, avatar: "👧" },
-    {
-      name: "Alex",
-      age: 10,
-      level: "Intermediate",
-      progress: 60,
-      avatar: "👦",
-    },
-  ];
 
   const categories = [
     { name: "All", icon: "📚", color: "bg-gray-100 text-gray-800" },
@@ -54,49 +44,54 @@ const CoursesPage = () => {
 
   // Fetch courses from backend and add completion data
   useEffect(() => {
-    const fetchCourses = async () => {
+    const fetchCoursesData = async () => {
       try {
         setLoading(true);
-        const response = await fetch("http://localhost:5000/api/courses");
-        if (response.ok) {
-          const backendCourses = await response.json();
+        const token = localStorage.getItem("token");
+        const backendCourses = await getCourses(token);
 
-          // Get user's completion data
-          const currentUserEmail =
-            localStorage.getItem("userEmail") || "anonymous";
+        // Get user's completion data
+        const currentUserEmail =
+          localStorage.getItem("userEmail") || "anonymous";
 
-          // Add completion status to each course
-          const coursesWithCompletion = backendCourses.map((course) => {
-            const completedLessonsKey = `completedLessons_${course._id}_${currentUserEmail}`;
-            const completedLessons = JSON.parse(
-              localStorage.getItem(completedLessonsKey) || "[]"
-            );
-            const totalLessons = course.lessons ? course.lessons.length : 5;
-            const progress =
-              totalLessons > 0
-                ? Math.round((completedLessons.length / totalLessons) * 100)
-                : 0;
-            const completed =
-              completedLessons.length === totalLessons && totalLessons > 0;
+        // Add completion status to each course
+        const coursesWithCompletion = backendCourses.map((course) => {
+          const courseId = String(course.id); // use id from backend
+          const completedLessonsKey = `completedLessons_${courseId}_${currentUserEmail}`;
+          const completedLessons = JSON.parse(
+            localStorage.getItem(completedLessonsKey) || "[]"
+          );
+          // lessons can be a number or an array
+          const totalLessons = Array.isArray(course.lessons)
+            ? course.lessons.length
+            : typeof course.lessons === "number"
+            ? course.lessons
+            : 5;
+          const progress =
+            totalLessons > 0
+              ? Math.round((completedLessons.length / totalLessons) * 100)
+              : 0;
+          const completed =
+            completedLessons.length === totalLessons && totalLessons > 0;
 
-            return {
-              ...course,
-              id: course._id,
-              progress,
-              completed,
-              unlocked: true,
-              // Add default values for missing fields
-              duration: course.duration || "2 hours",
-              enrolled: course.enrolled || 500,
-              rating: course.rating || 4.5,
-              skills: course.skills || ["Learning", "Problem Solving"],
-              color: course.color || "from-blue-400 to-blue-600",
-              thumbnail: course.thumbnail || "📚",
-            };
-          });
+          return {
+            ...course,
+            id: courseId, // always set id to backend id as string
+            _id: courseId, // ensure _id is present and string for compatibility
+            progress,
+            completed,
+            unlocked: true,
+            // Add default values for missing fields
+            duration: course.duration || "2 hours",
+            enrolled: course.enrolled || 500,
+            rating: course.rating || 4.5,
+            skills: course.skills || ["Learning", "Problem Solving"],
+            color: course.color || "from-blue-400 to-blue-600",
+            thumbnail: course.thumbnail || "\ud83d\udcda",
+          };
+        });
 
-          setCourses(coursesWithCompletion);
-        }
+        setCourses(coursesWithCompletion);
       } catch (error) {
         console.error("Error fetching courses:", error);
         setCourses([]);
@@ -105,7 +100,7 @@ const CoursesPage = () => {
       }
     };
 
-    fetchCourses();
+    fetchCoursesData();
   }, []);
 
   // Calculate stats from real data
@@ -114,8 +109,6 @@ const CoursesPage = () => {
     (course) => course.progress > 0 && !course.completed
   ).length;
   const totalCourses = courses.length;
-
-  const child = children.find((c) => c.name === activeChild);
 
   const filteredCourses = courses.filter((course) => {
     const matchesCategory =
@@ -145,6 +138,16 @@ const CoursesPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Home Button */}
+        <div className="mb-6">
+          <button
+            onClick={() => navigate("/")}
+            className="flex items-center text-blue-600 hover:text-blue-800 font-medium"
+          >
+            <ArrowLeft size={20} className="mr-2" />
+            Home
+          </button>
+        </div>
         {/* Header */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
@@ -155,19 +158,6 @@ const CoursesPage = () => {
               <p className="text-gray-600">
                 Choose your next learning adventure!
               </p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <select
-                value={activeChild}
-                onChange={(e) => setActiveChild(e.target.value)}
-                className="bg-blue-100 border border-blue-300 rounded-lg px-4 py-2 text-blue-800 font-medium"
-              >
-                {children.map((child) => (
-                  <option key={child.name} value={child.name}>
-                    {child.name}
-                  </option>
-                ))}
-              </select>
             </div>
           </div>
 
@@ -308,7 +298,12 @@ const CoursesPage = () => {
                       <span className="flex items-center space-x-1">
                         <BookOpen size={14} />
                         <span>
-                          {course.lessons ? course.lessons.length : 5} lessons
+                          {Array.isArray(course.lessons)
+                            ? course.lessons.length
+                            : typeof course.lessons === "number"
+                            ? course.lessons
+                            : 5}{" "}
+                          lessons
                         </span>
                       </span>
                     </div>
@@ -384,7 +379,7 @@ const CoursesPage = () => {
                         ? "bg-blue-500 text-white hover:bg-blue-600"
                         : "bg-purple-500 text-white hover:bg-purple-600"
                     }`}
-                    onClick={() => navigate(`/course/${course.id}`)}
+                    onClick={() => navigate(`/course/${String(course._id)}`)}
                   >
                     {course.completed ? (
                       <>

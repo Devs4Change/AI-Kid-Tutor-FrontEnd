@@ -37,7 +37,7 @@ const Sidebar = ({
   const navigationItems = [
     {
       id: "home",
-      label: "Back to Home",
+      label: "Home",
       icon: Globe,
       path: "/",
     },
@@ -186,9 +186,11 @@ const Sidebar = ({
             <div className="relative">
               {(() => {
                 const savedProfile = localStorage.getItem("userProfile");
-                const profileData = savedProfile ? JSON.parse(savedProfile) : null;
+                const profileData = savedProfile
+                  ? JSON.parse(savedProfile)
+                  : null;
                 const profileImage = profileData?.avatar;
-                
+
                 return (
                   <>
                     {profileImage ? (

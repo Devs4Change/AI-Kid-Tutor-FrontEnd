@@ -1,33 +1,43 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:5000/api/users"; // Change if needed
+const API_URL = "https://ai-kid-tutor-api.onrender.com";
 
-export const getUsers = async () => {
-  const { data } = await axios.get(API_URL);
+export const getUsers = async (token) => {
+  const { data } = await axios.get(`${API_URL}/admin/users/`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
   return data;
 };
 
-export const getUser = async (id) => {
-  const { data } = await axios.get(`${API_URL}/${id}`);
+export const getUser = async (id, token) => {
+  const { data } = await axios.get(`${API_URL}/admin/users/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   return data;
 };
 
 export const createUser = async (user, token) => {
-  const { data } = await axios.post(API_URL, user, {
-    headers: { Authorization: `Bearer ${token}` },
+  const { data } = await axios.post(`${API_URL}/users`, user, {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
   });
-  return data.user; // Return the user object from the nested response
+  return data;
 };
 
 export const updateUser = async (id, user, token) => {
-  const { data } = await axios.put(`${API_URL}/${id}`, user, {
-    headers: { Authorization: `Bearer ${token}` },
+  const { data } = await axios.put(`${API_URL}/admin/users/${id}`, user, {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
   });
   return data;
 };
 
 export const deleteUser = async (id, token) => {
-  const { data } = await axios.delete(`${API_URL}/${id}`, {
+  const { data } = await axios.delete(`${API_URL}/admin/users/${id}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return data;

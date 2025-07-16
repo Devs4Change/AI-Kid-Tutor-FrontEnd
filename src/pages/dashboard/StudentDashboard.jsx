@@ -10,15 +10,16 @@ import {
   TrendingUp,
   Award,
   CheckCircle,
+  Settings as SettingsIcon,
+  GripVertical,
+  X as CloseIcon,
 } from "lucide-react";
 import { getCourses } from "../../services/courses";
-import { getAchievements } from "../../services/achievements";
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const [currentLesson, setCurrentLesson] = useState(null);
   const [courses, setCourses] = useState([]);
-  const [achievements, setAchievements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stats, setStats] = useState({
@@ -155,14 +156,9 @@ const Dashboard = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [coursesData, achievementsData] = await Promise.all([
-          getCourses(),
-          getAchievements(),
-        ]);
-
+        const coursesData = await getCourses();
         // Calculate real stats from localStorage
         const calculatedStats = calculateStats(coursesData);
-
         // Add frontend-specific fields to backend data with real completion status
         const currentUserEmail =
           localStorage.getItem("userEmail") || "anonymous";
@@ -177,10 +173,8 @@ const Dashboard = () => {
             totalLessons > 0 ? (completedLessonsCount / totalLessons) * 100 : 0;
           const completed =
             completedLessonsCount === totalLessons && totalLessons > 0;
-
           // Calculate stars based on completion
           const stars = Math.floor(progress / 25);
-
           return {
             ...course,
             id: course._id,
@@ -189,37 +183,7 @@ const Dashboard = () => {
             stars,
           };
         });
-
-        // Mark achievements as earned based on stats
-        const achievementsWithFrontendFields = achievementsData.map(
-          (achievement) => {
-            let earned = false;
-            if (
-              achievement.title === "First Lesson" &&
-              calculatedStats.lessonsCompleted >= 1
-            ) {
-              earned = true;
-            } else if (
-              achievement.title === "AI Explorer" &&
-              calculatedStats.completedCourses >= 1
-            ) {
-              earned = true;
-            } else if (
-              achievement.title === "Course Champion" &&
-              calculatedStats.completedCourses >= 5
-            ) {
-              earned = true;
-            }
-            // Quiz Master and Learning Streak require additional tracking
-            return {
-              ...achievement,
-              earned,
-            };
-          }
-        );
-
         setCourses(coursesWithFrontendFields);
-        setAchievements(achievementsWithFrontendFields);
         setStats(calculatedStats);
       } catch (err) {
         console.error("Error fetching data:", err);
@@ -266,9 +230,450 @@ const Dashboard = () => {
       color: "bg-purple-500",
     },
   ];
+  // Calculate overall progress (all lessons completed / all lessons)
+  const totalLessons = courses.reduce(
+    (sum, c) =>
+      sum +
+      (Array.isArray(c.lessons)
+        ? c.lessons.length
+        : typeof c.lessons === "number"
+        ? c.lessons
+        : 0),
+    0
+  );
+  const totalCompletedLessons = courses.reduce((sum, c) => {
+    const completedLessonsKey = `completedLessons_${c._id}_${
+      localStorage.getItem("userEmail") || "anonymous"
+    }`;
+    const completedLessons = JSON.parse(
+      localStorage.getItem(completedLessonsKey) || "[]"
+    );
+    return sum + completedLessons.length;
+  }, 0);
+  const overallProgress =
+    totalLessons > 0
+      ? Math.round((totalCompletedLessons / totalLessons) * 100)
+      : 0;
 
   const userInfo = getUserInfo();
   const recentActivity = getRecentActivity();
+
+  // Badge definitions
+  const BADGES = [
+    {
+      id: "first_lesson",
+      name: "First Lesson",
+      description: "Completed your first lesson!",
+      icon: "🎉",
+      criteria: (stats, quizStats) => stats.lessonsCompleted >= 1,
+    },
+    {
+      id: "five_lessons",
+      name: "5 Lessons",
+      description: "Completed 5 lessons!",
+      icon: "🏅",
+      criteria: (stats, quizStats) => stats.lessonsCompleted >= 5,
+    },
+    {
+      id: "seven_streak",
+      name: "7-Day Streak",
+      description: "7 days of learning in a row!",
+      icon: "🔥",
+      criteria: (stats, quizStats) => stats.currentStreak >= 7,
+    },
+    {
+      id: "first_quiz",
+      name: "Quiz Novice",
+      description: "Completed your first quiz!",
+      icon: "🧠",
+      criteria: (stats, quizStats) => quizStats.quizzesCompleted >= 1,
+    },
+    {
+      id: "three_quizzes",
+      name: "Quiz Master",
+      description: "Completed 3 quizzes!",
+      icon: "👑",
+      criteria: (stats, quizStats) => quizStats.quizzesCompleted >= 3,
+    },
+  ];
+
+  // Helper to get quiz stats from localStorage
+  const getQuizStats = () => {
+    const userEmail = localStorage.getItem("userEmail") || "anonymous";
+    const key = `quizStats_${userEmail}`;
+    return JSON.parse(localStorage.getItem(key) || '{"quizzesCompleted":0}');
+  };
+
+  // Helper to set quiz stats
+  const setQuizStats = (quizStats) => {
+    const userEmail = localStorage.getItem("userEmail") || "anonymous";
+    const key = `quizStats_${userEmail}`;
+    localStorage.setItem(key, JSON.stringify(quizStats));
+  };
+
+  // Award badges and store in localStorage
+  const getEarnedBadges = (stats, quizStats) => {
+    const userEmail = localStorage.getItem("userEmail") || "anonymous";
+    const key = `earnedBadges_${userEmail}`;
+    let earned = JSON.parse(localStorage.getItem(key) || "[]");
+    let updated = false;
+    BADGES.forEach((badge) => {
+      if (badge.criteria(stats, quizStats) && !earned.includes(badge.id)) {
+        earned.push(badge.id);
+        updated = true;
+      }
+    });
+    if (updated) {
+      localStorage.setItem(key, JSON.stringify(earned));
+    }
+    return earned;
+  };
+
+  const [quizStats, setQuizStatsState] = useState(getQuizStats());
+  const [earnedBadges, setEarnedBadges] = useState([]);
+
+  // Update badges when stats or quizStats change
+  useEffect(() => {
+    const earned = getEarnedBadges(stats, quizStats);
+    setEarnedBadges(earned);
+  }, [stats, quizStats]);
+
+  // Listen for quiz completion events (simulate for demo)
+  useEffect(() => {
+    // Listen for a custom event 'quizCompleted' to increment quiz count
+    const handler = () => {
+      const newStats = {
+        ...quizStats,
+        quizzesCompleted: (quizStats.quizzesCompleted || 0) + 1,
+      };
+      setQuizStats(newStats);
+      setQuizStatsState(newStats);
+    };
+    window.addEventListener("quizCompleted", handler);
+    return () => window.removeEventListener("quizCompleted", handler);
+  }, [quizStats]);
+
+  // Widget definitions
+  const DASHBOARD_WIDGETS = [
+    { id: "badges", label: "Badges" },
+    { id: "recentActivity", label: "Recent Activity" },
+    { id: "currentCourses", label: "Current Courses" },
+    { id: "recommendedCourses", label: "Recommended Courses" },
+    { id: "completedCourses", label: "Completed Courses" },
+  ];
+
+  const getWidgetPrefs = () => {
+    const userEmail = localStorage.getItem("userEmail") || "anonymous";
+    const key = `dashboardWidgets_${userEmail}`;
+    const saved = localStorage.getItem(key);
+    if (saved) return JSON.parse(saved);
+    // Default: all widgets, default order
+    return DASHBOARD_WIDGETS.map((w) => ({ id: w.id, visible: true }));
+  };
+
+  const setWidgetPrefs = (prefs) => {
+    const userEmail = localStorage.getItem("userEmail") || "anonymous";
+    const key = `dashboardWidgets_${userEmail}`;
+    localStorage.setItem(key, JSON.stringify(prefs));
+  };
+
+  const [widgetPrefs, setWidgetPrefsState] = useState(getWidgetPrefs());
+  const [showCustomize, setShowCustomize] = useState(false);
+
+  // Save widgetPrefs to localStorage when changed
+  useEffect(() => {
+    setWidgetPrefs(widgetPrefs);
+  }, [widgetPrefs]);
+
+  // Drag-and-drop handlers
+  const handleDragStart = (e, idx) => {
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("widgetIdx", idx);
+  };
+  const handleDrop = (e, idx) => {
+    const fromIdx = parseInt(e.dataTransfer.getData("widgetIdx"), 10);
+    if (fromIdx === idx) return;
+    const newPrefs = [...widgetPrefs];
+    const [moved] = newPrefs.splice(fromIdx, 1);
+    newPrefs.splice(idx, 0, moved);
+    setWidgetPrefsState(newPrefs);
+  };
+  const handleDragOver = (e) => e.preventDefault();
+
+  // Widget toggle
+  const toggleWidget = (id) => {
+    setWidgetPrefsState((prefs) =>
+      prefs.map((w) => (w.id === id ? { ...w, visible: !w.visible } : w))
+    );
+  };
+
+  // Render widgets based on prefs
+  const renderWidget = (id) => {
+    switch (id) {
+      case "badges":
+        return (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-6">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center">
+              <Award className="text-yellow-500 mr-2" size={24} />
+              Badges
+            </h2>
+            <div className="grid grid-cols-3 gap-4">
+              {BADGES.map((badge) => {
+                const earned = earnedBadges.includes(badge.id);
+                return (
+                  <div
+                    key={badge.id}
+                    className={`flex flex-col items-center p-2 rounded-lg border-2 transition-all duration-200 ${
+                      earned
+                        ? "border-yellow-400 bg-yellow-50 dark:bg-yellow-900"
+                        : "border-gray-200 bg-gray-50 dark:bg-gray-900 opacity-60"
+                    }`}
+                    title={badge.description}
+                  >
+                    <span className="text-3xl mb-1">{badge.icon}</span>
+                    <span
+                      className={`font-semibold text-sm ${
+                        earned
+                          ? "text-yellow-700 dark:text-yellow-200"
+                          : "text-gray-400"
+                      }`}
+                    >
+                      {badge.name}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      case "recentActivity":
+        return (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">
+              Recent Activity
+            </h2>
+            <div className="space-y-3">
+              {recentActivity.length > 0 ? (
+                recentActivity.map((activity, index) => (
+                  <div
+                    key={index}
+                    className={`flex items-center space-x-3 p-3 rounded-lg ${activity.bgColor}`}
+                  >
+                    {activity.icon}
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-800">
+                        {activity.title}
+                      </p>
+                      <p className="text-xs text-gray-600">{activity.time}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-gray-500 text-sm text-center py-4">
+                  No recent activity
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      case "currentCourses":
+        return (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center">
+              <BookOpen className="text-blue-600 mr-2" size={24} />
+              Current Courses
+            </h2>
+            {courses.filter((course) => !course.completed).length > 0 ? (
+              <div className="space-y-4">
+                {courses
+                  .filter((course) => !course.completed)
+                  .slice(0, 4)
+                  .map((course) => (
+                    <div
+                      key={course.id}
+                      className={`p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
+                        course.completed
+                          ? "border-green-200 bg-green-50"
+                          : "border-blue-200 bg-blue-50 hover:border-blue-300"
+                      }`}
+                      onClick={() => navigate(`/course/${course.id}`)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div
+                            className={`p-2 rounded-lg ${
+                              course.completed ? "bg-green-500" : "bg-blue-500"
+                            } text-white`}
+                          >
+                            {course.completed ? (
+                              <Trophy size={16} />
+                            ) : (
+                              <Play size={16} />
+                            )}
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-gray-800 dark:text-white">
+                              {course.title || "Untitled Course"}
+                            </h3>
+                            <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-300">
+                              <span className="flex items-center space-x-1">
+                                <Clock size={14} />
+                                <span>{course.duration || "2 hours"}</span>
+                              </span>
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs ${
+                                  (course.level || "Beginner") === "Beginner"
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-yellow-100 text-yellow-800"
+                                }`}
+                              >
+                                {course.level || "Beginner"}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {Math.round(course.progress || 0)}% complete
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          {[...Array(3)].map((_, i) => (
+                            <Star
+                              key={i}
+                              size={16}
+                              className={
+                                i < course.stars
+                                  ? "text-yellow-400 fill-current"
+                                  : "text-gray-300"
+                              }
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <div className="text-gray-500 text-center py-8">
+                No current courses
+              </div>
+            )}
+          </div>
+        );
+      case "recommendedCourses":
+        return (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 flex flex-col items-center">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center">
+              <Star className="text-yellow-500 mr-2" size={24} />
+              Recommended Courses
+            </h2>
+            <div className="w-full max-w-2xl grid grid-cols-1 md:grid-cols-2 gap-6">
+              {courses
+                .filter(
+                  (course) => !course.completed && (course.progress || 0) === 0
+                )
+                .slice(0, 3)
+                .map((course) => (
+                  <div
+                    key={course.id}
+                    className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl shadow p-4 flex flex-col justify-between border border-blue-100 hover:shadow-lg transition-all duration-200"
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="text-3xl">{course.thumbnail || "📚"}</div>
+                      <div>
+                        <h3 className="font-semibold text-lg text-gray-800 dark:text-white mb-1">
+                          {course.title}
+                        </h3>
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-medium">
+                            {course.level || "Beginner"}
+                          </span>
+                          <span className="px-2 py-1 rounded-full bg-purple-100 text-purple-700 font-medium">
+                            {course.category || "General"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-gray-600 dark:text-gray-300 text-sm mb-4 line-clamp-2">
+                      {course.description}
+                    </p>
+                    <button
+                      onClick={() => navigate(`/course/${course.id}`)}
+                      className="mt-auto px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full font-bold shadow hover:from-blue-600 hover:to-purple-700 transition-all"
+                    >
+                      Start Course
+                    </button>
+                  </div>
+                ))}
+              {courses.filter(
+                (course) => !course.completed && (course.progress || 0) === 0
+              ).length === 0 && (
+                <div className="text-gray-500 text-center col-span-2">
+                  No new courses to recommend. Great job!
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      case "completedCourses":
+        return (
+          courses.filter((course) => course.completed).length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mt-6">
+              <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center">
+                <Trophy className="text-green-600 mr-2" size={24} />
+                Completed Courses
+              </h2>
+              <div className="space-y-4">
+                {courses
+                  .filter((course) => course.completed)
+                  .map((course) => (
+                    <div
+                      key={course.id}
+                      className="p-4 rounded-lg border-2 border-green-200 bg-green-50 cursor-pointer transition-all duration-200 hover:border-green-300"
+                      onClick={() => navigate(`/course/${course.id}`)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="p-2 rounded-lg bg-green-500 text-white">
+                            <Trophy size={16} />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-gray-800">
+                              {course.title || "Untitled Course"}
+                            </h3>
+                            <div className="flex items-center space-x-4 text-sm text-gray-600">
+                              <span className="flex items-center space-x-1">
+                                <Clock size={14} />
+                                <span>{course.duration || "2 hours"}</span>
+                              </span>
+                              <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                                {course.level || "Beginner"}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {Math.round(course.progress || 0)}% complete
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          {[...Array(3)].map((_, i) => (
+                            <Star
+                              key={i}
+                              size={16}
+                              className="text-yellow-400 fill-current"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )
+        );
+      default:
+        return null;
+    }
+  };
 
   if (loading) {
     return (
@@ -352,314 +757,100 @@ const Dashboard = () => {
           ))}
         </div>
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Current Courses */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Current Courses */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center">
-                <BookOpen className="text-blue-600 mr-2" size={24} />
-                Current Courses
-              </h2>
-              {courses.filter((course) => !course.completed).length > 0 ? (
-                <div className="space-y-4">
-                  {courses
-                    .filter((course) => !course.completed)
-                    .slice(0, 4)
-                    .map((course) => (
-                      <div
-                        key={course.id}
-                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
-                          course.completed
-                            ? "border-green-200 bg-green-50"
-                            : "border-blue-200 bg-blue-50 hover:border-blue-300"
-                        }`}
-                        onClick={() => navigate(`/course/${course.id}`)}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <div
-                              className={`p-2 rounded-lg ${
-                                course.completed
-                                  ? "bg-green-500"
-                                  : "bg-blue-500"
-                              } text-white`}
-                            >
-                              {course.completed ? (
-                                <Trophy size={16} />
-                              ) : (
-                                <Play size={16} />
-                              )}
-                            </div>
-                            <div>
-                              <h3 className="font-semibold text-gray-800 dark:text-white">
-                                {course.title || "Untitled Course"}
-                              </h3>
-                              <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-300">
-                                <span className="flex items-center space-x-1">
-                                  <Clock size={14} />
-                                  <span>{course.duration || "2 hours"}</span>
-                                </span>
-                                <span
-                                  className={`px-2 py-1 rounded-full text-xs ${
-                                    (course.level || "Beginner") === "Beginner"
-                                      ? "bg-green-100 text-green-800"
-                                      : "bg-yellow-100 text-yellow-800"
-                                  }`}
-                                >
-                                  {course.level || "Beginner"}
-                                </span>
-                                <span className="text-xs text-gray-500">
-                                  {Math.round(course.progress || 0)}% complete
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            {[...Array(3)].map((_, i) => (
-                              <Star
-                                key={i}
-                                size={16}
-                                className={
-                                  i < course.stars
-                                    ? "text-yellow-400 fill-current"
-                                    : "text-gray-300"
-                                }
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {courses
-                    .filter((course) => !course.completed)
-                    .slice(0, 4)
-                    .map((course) => (
-                      <div
-                        key={course.id}
-                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
-                          course.completed
-                            ? "border-green-200 bg-green-50"
-                            : "border-blue-200 bg-blue-50 hover:border-blue-300"
-                        }`}
-                        onClick={() => navigate(`/course/${course.id}`)}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <div
-                              className={`p-2 rounded-lg ${
-                                course.completed
-                                  ? "bg-green-500"
-                                  : "bg-blue-500"
-                              } text-white`}
-                            >
-                              {course.completed ? (
-                                <Trophy size={16} />
-                              ) : (
-                                <Play size={16} />
-                              )}
-                            </div>
-                            <div>
-                              <h3 className="font-semibold text-gray-800 dark:text-white">
-                                {course.title || "Untitled Course"}
-                              </h3>
-                              <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-300">
-                                <span className="flex items-center space-x-1">
-                                  <Clock size={14} />
-                                  <span>{course.duration || "2 hours"}</span>
-                                </span>
-                                <span
-                                  className={`px-2 py-1 rounded-full text-xs ${
-                                    (course.level || "Beginner") === "Beginner"
-                                      ? "bg-green-100 text-green-800"
-                                      : "bg-yellow-100 text-yellow-800"
-                                  }`}
-                                >
-                                  {course.level || "Beginner"}
-                                </span>
-                                <span className="text-xs text-gray-500">
-                                  {Math.round(course.progress || 0)}% complete
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            {[...Array(3)].map((_, i) => (
-                              <Star
-                                key={i}
-                                size={16}
-                                className="text-yellow-400 fill-current"
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Right Sidebar Content */}
-          <div className="space-y-6">
-            {/* Achievements */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">
-                Achievements
-              </h2>
-              {loading ? (
-                <div className="text-center py-4">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-yellow-600 mx-auto mb-2"></div>
-                  <p className="text-gray-600 dark:text-gray-300 text-sm">
-                    Loading achievements...
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {achievements.slice(0, 5).map((achievement, index) => (
-                    <div
-                      key={index}
-                      className={`flex items-center space-x-3 p-3 rounded-lg transition-all duration-200 ${
-                        achievement.earned
-                          ? "bg-yellow-50 border border-yellow-200"
-                          : "bg-gray-50 border border-gray-200"
-                      }`}
-                    >
-                      <div
-                        className={`p-2 rounded-lg ${
-                          achievement.earned
-                            ? "bg-yellow-500 text-white"
-                            : "bg-gray-300 text-gray-600"
-                        }`}
-                      >
-                        <span className="text-lg">{achievement.icon}</span>
-                      </div>
-                      <div className="flex-1">
-                        <h3
-                          className={`font-medium text-sm ${
-                            achievement.earned
-                              ? "text-yellow-800"
-                              : "text-gray-600"
-                          }`}
-                        >
-                          {achievement.title}
-                        </h3>
-                        <p
-                          className={`text-xs ${
-                            achievement.earned
-                              ? "text-yellow-600"
-                              : "text-gray-500"
-                          }`}
-                        >
-                          {achievement.description}
-                        </p>
-                      </div>
-                      {achievement.earned && (
-                        <div className="flex items-center space-x-1">
-                          {[...Array(3)].map((_, i) => (
-                            <Star
-                              key={i}
-                              size={16}
-                              className="text-yellow-400 fill-current"
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Recent Activity */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">
-                Recent Activity
-              </h2>
+        {/* Customize Dashboard Button */}
+        <div className="flex justify-end mb-4">
+          <button
+            className="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 font-semibold shadow"
+            onClick={() => setShowCustomize(true)}
+          >
+            <SettingsIcon size={18} />
+            Customize Dashboard
+          </button>
+        </div>
+        {/* Customize Modal */}
+        {showCustomize && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl p-6 w-full max-w-md relative">
+              <button
+                className="absolute top-3 right-3 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+                onClick={() => setShowCustomize(false)}
+                aria-label="Close"
+              >
+                <CloseIcon size={22} />
+              </button>
+              <h3 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">
+                Customize Dashboard
+              </h3>
               <div className="space-y-3">
-                {recentActivity.length > 0 ? (
-                  recentActivity.map((activity, index) => (
+                {widgetPrefs.map((w, idx) => {
+                  const widget = DASHBOARD_WIDGETS.find((dw) => dw.id === w.id);
+                  return (
                     <div
-                      key={index}
-                      className={`flex items-center space-x-3 p-3 rounded-lg ${activity.bgColor}`}
+                      key={w.id}
+                      className="flex items-center justify-between bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2 cursor-move"
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, idx)}
+                      onDrop={(e) => handleDrop(e, idx)}
+                      onDragOver={handleDragOver}
                     >
-                      {activity.icon}
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-800">
-                          {activity.title}
-                        </p>
-                        <p className="text-xs text-gray-600">{activity.time}</p>
+                      <div className="flex items-center gap-2">
+                        <GripVertical size={18} className="text-gray-400" />
+                        <span className="font-medium text-gray-800 dark:text-gray-100">
+                          {widget.label}
+                        </span>
                       </div>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={w.visible}
+                          onChange={() => toggleWidget(w.id)}
+                        />
+                        <span className="text-sm">Show</span>
+                      </label>
                     </div>
-                  ))
-                ) : (
-                  <p className="text-gray-500 text-sm text-center py-4">
-                    No recent activity
-                  </p>
-                )}
+                  );
+                })}
+              </div>
+              <div className="flex justify-end mt-6">
+                <button
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 shadow"
+                  onClick={() => setShowCustomize(false)}
+                >
+                  Done
+                </button>
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Completed Courses */}
-        {courses.filter((course) => course.completed).length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mt-6">
-            <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center">
-              <Trophy className="text-green-600 mr-2" size={24} />
-              Completed Courses
-            </h2>
-            <div className="space-y-4">
-              {courses
-                .filter((course) => course.completed)
-                .map((course) => (
-                  <div
-                    key={course.id}
-                    className="p-4 rounded-lg border-2 border-green-200 bg-green-50 cursor-pointer transition-all duration-200 hover:border-green-300"
-                    onClick={() => navigate(`/course/${course.id}`)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="p-2 rounded-lg bg-green-500 text-white">
-                          <Trophy size={16} />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-800">
-                            {course.title || "Untitled Course"}
-                          </h3>
-                          <div className="flex items-center space-x-4 text-sm text-gray-600">
-                            <span className="flex items-center space-x-1">
-                              <Clock size={14} />
-                              <span>{course.duration || "2 hours"}</span>
-                            </span>
-                            <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                              {course.level || "Beginner"}
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              {Math.round(course.progress || 0)}% complete
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        {[...Array(3)].map((_, i) => (
-                          <Star
-                            key={i}
-                            size={16}
-                            className="text-yellow-400 fill-current"
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </div>
         )}
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Dynamic Widgets */}
+          <div className="lg:col-span-2 space-y-6">
+            {widgetPrefs
+              .filter(
+                (w) =>
+                  w.visible &&
+                  [
+                    "currentCourses",
+                    "recommendedCourses",
+                    "completedCourses",
+                  ].includes(w.id)
+              )
+              .map((w) => (
+                <React.Fragment key={w.id}>{renderWidget(w.id)}</React.Fragment>
+              ))}
+          </div>
+          {/* Right Sidebar Content - Dynamic Widgets */}
+          <div className="space-y-6">
+            {widgetPrefs
+              .filter(
+                (w) => w.visible && ["badges", "recentActivity"].includes(w.id)
+              )
+              .map((w) => (
+                <React.Fragment key={w.id}>{renderWidget(w.id)}</React.Fragment>
+              ))}
+          </div>
+        </div>
       </div>
     </div>
   );
