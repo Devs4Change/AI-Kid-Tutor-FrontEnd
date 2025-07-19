@@ -355,6 +355,15 @@ const CoursesPage = () => {
                     }`}
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (course.completed) {
+                        // Optionally show a message or do nothing
+                        return;
+                      }
+                      const token = localStorage.getItem("token");
+                      if (!token) {
+                        navigate("/login");
+                        return;
+                      }
                       navigate(`/course/${course.id}`);
                     }}
                   >
@@ -372,9 +381,9 @@ const CoursesPage = () => {
                       <>
                         <Play size={16} />
                         <span>Start Course</span>
+                        <ChevronRight size={16} />
                       </>
                     )}
-                    <ChevronRight size={16} />
                   </button>
                   {/* Add more course details or actions here if needed */}
                 </div>
