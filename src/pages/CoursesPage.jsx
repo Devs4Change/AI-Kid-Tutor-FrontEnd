@@ -47,8 +47,7 @@ const CoursesPage = () => {
     const fetchCoursesData = async () => {
       try {
         setLoading(true);
-        const token = localStorage.getItem("token");
-        const backendCourses = await getCourses(token);
+        const backendCourses = await getCourses();
 
         // Get user's completion data
         const currentUserEmail =
@@ -266,7 +265,8 @@ const CoursesPage = () => {
             {filteredCourses.map((course) => (
               <div
                 key={course.id}
-                className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300"
+                className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer"
+                onClick={() => navigate(`/course/${course.id}`)}
               >
                 {/* Course Header */}
                 <div
@@ -280,9 +280,15 @@ const CoursesPage = () => {
                       </div>
                     )}
                   </div>
-                  <h3 className="text-xl font-bold mb-2">{course.title}</h3>
+                  <h3 className="text-xl font-bold mb-2">
+                    {typeof course.title === "string"
+                      ? course.title
+                      : JSON.stringify(course.title)}
+                  </h3>
                   <p className="text-white text-opacity-90 text-sm">
-                    {course.description}
+                    {typeof course.description === "string"
+                      ? course.description
+                      : JSON.stringify(course.description)}
                   </p>
                 </div>
 
@@ -302,6 +308,8 @@ const CoursesPage = () => {
                             ? course.lessons.length
                             : typeof course.lessons === "number"
                             ? course.lessons
+                            : typeof course.lessons === "object"
+                            ? JSON.stringify(course.lessons)
                             : 5}{" "}
                           lessons
                         </span>
@@ -313,7 +321,9 @@ const CoursesPage = () => {
                         size={14}
                       />
                       <span className="text-sm font-medium">
-                        {course.rating}
+                        {typeof course.rating === "number"
+                          ? course.rating
+                          : JSON.stringify(course.rating)}
                       </span>
                     </div>
                   </div>
@@ -329,48 +339,12 @@ const CoursesPage = () => {
                           : "bg-red-100 text-red-800"
                       }`}
                     >
-                      {course.level}
-                    </span>
-                    <span className="text-sm text-gray-500 flex items-center space-x-1">
-                      <Users size={14} />
-                      <span>{course.enrolled.toLocaleString()}</span>
+                      {typeof course.level === "string"
+                        ? course.level
+                        : JSON.stringify(course.level)}
                     </span>
                   </div>
-
-                  {/* Skills */}
-                  <div className="mb-4">
-                    <p className="text-sm font-medium text-gray-700 mb-2">
-                      You'll learn:
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {course.skills.map((skill, index) => (
-                        <span
-                          key={index}
-                          className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-md"
-                        >
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Progress Bar (if started) */}
-                  {course.progress > 0 && (
-                    <div className="mb-4">
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-gray-600">Progress</span>
-                        <span className="font-medium">{course.progress}%</span>
-                      </div>
-                      <div className="bg-gray-200 rounded-full h-2">
-                        <div
-                          className={`bg-gradient-to-r ${course.color} h-2 rounded-full transition-all duration-500`}
-                          style={{ width: `${course.progress}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Action Button */}
+                  {/* Start/Continue/Completed Button */}
                   <button
                     className={`w-full py-3 px-4 rounded-lg font-medium transition-all flex items-center justify-center space-x-2 ${
                       course.completed
@@ -379,11 +353,14 @@ const CoursesPage = () => {
                         ? "bg-blue-500 text-white hover:bg-blue-600"
                         : "bg-purple-500 text-white hover:bg-purple-600"
                     }`}
-                    onClick={() => navigate(`/course/${String(course._id)}`)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/course/${course.id}`);
+                    }}
                   >
                     {course.completed ? (
                       <>
-                        <Trophy size={16} />
+                        <CheckCircle size={16} />
                         <span>Completed</span>
                       </>
                     ) : course.progress > 0 ? (
@@ -399,22 +376,10 @@ const CoursesPage = () => {
                     )}
                     <ChevronRight size={16} />
                   </button>
+                  {/* Add more course details or actions here if needed */}
                 </div>
               </div>
             ))}
-          </div>
-        )}
-
-        {/* No Results */}
-        {!loading && filteredCourses.length === 0 && (
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4">🔍</div>
-            <h3 className="text-xl font-bold text-gray-800 mb-2">
-              No courses found
-            </h3>
-            <p className="text-gray-600">
-              Try adjusting your filters or search terms
-            </p>
           </div>
         )}
       </div>

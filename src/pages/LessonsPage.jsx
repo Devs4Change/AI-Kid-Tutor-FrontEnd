@@ -23,11 +23,7 @@ const LessonsPage = () => {
         <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 mb-4 sm:mb-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
             <div className="bg-gradient-to-br from-blue-500 to-purple-600 p-2 sm:p-3 rounded-xl">
-              <BookOpen
-                className="text-white"
-                size={24}
-                className="sm:w-8 sm:h-8"
-              />
+              <BookOpen className="text-white sm:w-8 sm:h-8" size={24} />
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800">

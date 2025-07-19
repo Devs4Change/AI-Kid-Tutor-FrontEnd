@@ -11,7 +11,7 @@ import {
   Clock,
   LayoutDashboard,
 } from "lucide-react";
-import { getCourses } from "../services/courses";
+import { getCourses, getCourse } from "../services/courses";
 import CourseRating from "../components/CourseRating";
 
 const CourseDetailsPage = () => {
@@ -26,17 +26,9 @@ const CourseDetailsPage = () => {
       try {
         setLoading(true);
         const token = localStorage.getItem("token");
-        const courses = await getCourses(token);
-
-        // Find the course by ID (string comparison)
-        const foundCourse = courses.find(
-          (c) =>
-            String(c._id) === String(courseId) ||
-            String(c.id) === String(courseId)
-        );
+        const foundCourse = await getCourse(courseId, token);
 
         if (foundCourse) {
-          // Only show lessons if the course object has a lessons array
           let lessons = [];
           if (Array.isArray(foundCourse.lessons)) {
             const currentUserEmail =
@@ -73,7 +65,7 @@ const CourseDetailsPage = () => {
               lessons.length > 0,
             unlocked: true,
             color: foundCourse.color || "from-blue-400 to-blue-600",
-            thumbnail: foundCourse.thumbnail || "📚",
+            thumbnail: foundCourse.thumbnail || "\ud83d\udcda",
             skills: foundCourse.skills || [
               "Problem Solving",
               "Critical Thinking",
@@ -148,70 +140,92 @@ const CourseDetailsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4 sm:p-6">
       <div className="max-w-4xl mx-auto">
         {/* Back Button and Dashboard Button */}
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 mb-6">
           <button
             onClick={() => navigate("/courses")}
-            className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-blue-100 to-blue-300 text-blue-800 font-bold rounded-full shadow-md border border-blue-200 transition-all duration-300 hover:from-blue-200 hover:to-blue-400 hover:shadow-lg hover:text-blue-900 focus:outline-none focus:ring-4 focus:ring-blue-200/50"
+            className="flex items-center gap-2 px-4 sm:px-6 py-2 bg-gradient-to-r from-blue-100 to-blue-300 text-blue-800 font-bold rounded-full shadow-md border border-blue-200 transition-all duration-300 hover:from-blue-200 hover:to-blue-400 hover:shadow-lg hover:text-blue-900 focus:outline-none focus:ring-4 focus:ring-blue-200/50 text-sm sm:text-base"
           >
-            <ChevronLeft size={20} className="mr-1" />
+            <ChevronLeft size={18} className="sm:mr-1" />
             Back to Courses
           </button>
           <button
             onClick={() => navigate("/dashboard")}
-            className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-purple-100 to-purple-300 text-purple-800 font-bold rounded-full shadow-md border border-purple-200 transition-all duration-300 hover:from-purple-200 hover:to-purple-400 hover:shadow-lg hover:text-purple-900 focus:outline-none focus:ring-4 focus:ring-purple-200/50"
+            className="flex items-center gap-2 px-4 sm:px-6 py-2 bg-gradient-to-r from-purple-100 to-purple-300 text-purple-800 font-bold rounded-full shadow-md border border-purple-200 transition-all duration-300 hover:from-purple-200 hover:to-purple-400 hover:shadow-lg hover:text-purple-900 focus:outline-none focus:ring-4 focus:ring-purple-200/50 text-sm sm:text-base"
           >
-            <LayoutDashboard size={20} />
+            <LayoutDashboard size={18} />
             View Dashboard
           </button>
         </div>
 
         {/* Course Header */}
         <div
-          className={`bg-gradient-to-r ${course.color} p-6 rounded-xl text-white mb-6`}
+          className={`bg-gradient-to-r ${course.color} p-4 sm:p-6 rounded-xl text-white mb-6`}
         >
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">{course.title}</h1>
-              <p className="text-white text-opacity-90">{course.description}</p>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex-1">
+              <h1 className="text-2xl sm:text-3xl font-bold mb-2">
+                {course.title}
+              </h1>
+              <p className="text-white text-opacity-90 text-sm sm:text-base">
+                {course.description}
+              </p>
             </div>
-            <div className="text-6xl">{course.thumbnail}</div>
+            <div className="text-4xl sm:text-6xl">{course.thumbnail}</div>
           </div>
         </div>
 
         {/* Course Info */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
             <div className="flex items-center space-x-2">
-              <BookOpen size={18} className="text-gray-500" />
-              <div>
-                <p className="text-sm text-gray-500">Category</p>
-                <p className="font-medium">{course.category}</p>
+              <BookOpen
+                size={16}
+                className="sm:text-lg text-gray-500 flex-shrink-0"
+              />
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-gray-500">Category</p>
+                <p className="font-medium text-sm sm:text-base truncate">
+                  {course.category}
+                </p>
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <Star size={18} className="text-yellow-400 fill-current" />
-              <div>
-                <p className="text-sm text-gray-500">Rating</p>
-                <p className="font-medium">{course.rating}</p>
+              <Star
+                size={16}
+                className="sm:text-lg text-yellow-400 fill-current flex-shrink-0"
+              />
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-gray-500">Rating</p>
+                <p className="font-medium text-sm sm:text-base">
+                  {course.rating}
+                </p>
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <Users size={18} className="text-gray-500" />
-              <div>
-                <p className="text-sm text-gray-500">Students</p>
-                <p className="font-medium">
+              <Users
+                size={16}
+                className="sm:text-lg text-gray-500 flex-shrink-0"
+              />
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-gray-500">Students</p>
+                <p className="font-medium text-sm sm:text-base">
                   {course.enrolled.toLocaleString()}
                 </p>
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <Clock size={18} className="text-gray-500" />
-              <div>
-                <p className="text-sm text-gray-500">Duration</p>
-                <p className="font-medium">{course.duration}</p>
+              <Clock
+                size={16}
+                className="sm:text-lg text-gray-500 flex-shrink-0"
+              />
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-gray-500">Duration</p>
+                <p className="font-medium text-sm sm:text-base">
+                  {course.duration}
+                </p>
               </div>
             </div>
           </div>
@@ -233,17 +247,19 @@ const CourseDetailsPage = () => {
         </div>
 
         {/* Course Progress */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-gray-800">Course Progress</h2>
-            <span className="text-sm font-medium text-gray-600">
+        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 mb-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-800">
+              Course Progress
+            </h2>
+            <span className="text-xs sm:text-sm font-medium text-gray-600">
               {course.lessons.filter((l) => l.completed).length} of{" "}
               {course.lessons.length} lessons completed
             </span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
+          <div className="w-full bg-gray-200 rounded-full h-2 sm:h-3 mb-4">
             <div
-              className={`bg-gradient-to-r ${course.color} h-3 rounded-full`}
+              className={`bg-gradient-to-r ${course.color} h-2 sm:h-3 rounded-full`}
               style={{
                 width: `${
                   (course.lessons.filter((l) => l.completed).length /
@@ -253,7 +269,7 @@ const CourseDetailsPage = () => {
               }}
             ></div>
           </div>
-          <div className="flex justify-between text-sm text-gray-600">
+          <div className="flex justify-between text-xs sm:text-sm text-gray-600">
             <span>
               {Math.round(
                 (course.lessons.filter((l) => l.completed).length /
@@ -268,14 +284,16 @@ const CourseDetailsPage = () => {
 
         {/* Lessons List */}
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-xl font-bold text-gray-800">Lessons</h2>
+          <div className="p-4 sm:p-6 border-b border-gray-200">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-800">
+              Lessons
+            </h2>
           </div>
           <div className="divide-y divide-gray-200">
             {course.lessons.map((lesson, index) => (
               <div
                 key={lesson.id}
-                className={`p-6 transition-colors ${
+                className={`p-4 sm:p-6 transition-colors ${
                   lesson.locked
                     ? "opacity-60 cursor-not-allowed"
                     : "hover:bg-gray-50 cursor-pointer"
@@ -283,25 +301,27 @@ const CourseDetailsPage = () => {
                 onClick={() => !lesson.locked && handleLessonClick(lesson)}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="mr-4 text-gray-400 font-medium w-8 text-center">
+                  <div className="flex items-center flex-1 min-w-0">
+                    <div className="mr-3 sm:mr-4 text-gray-400 font-medium w-6 sm:w-8 text-center text-sm sm:text-base flex-shrink-0">
                       {index + 1}
                     </div>
-                    <div>
-                      <h3 className="font-medium text-gray-800">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-medium text-gray-800 text-sm sm:text-base truncate">
                         {lesson.title}
                       </h3>
-                      <p className="text-sm text-gray-500">{lesson.duration}</p>
+                      <p className="text-xs sm:text-sm text-gray-500">
+                        {lesson.duration}
+                      </p>
                     </div>
                   </div>
-                  <div>
+                  <div className="flex-shrink-0 ml-2">
                     {lesson.locked ? (
-                      <Lock className="text-gray-400" size={20} />
+                      <Lock className="text-gray-400" size={18} />
                     ) : lesson.completed ? (
-                      <CheckCircle className="text-green-500" size={20} />
+                      <CheckCircle className="text-green-500" size={18} />
                     ) : (
-                      <button className="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600 transition-colors">
-                        <Play size={16} />
+                      <button className="bg-blue-500 text-white p-1.5 sm:p-2 rounded-full hover:bg-blue-600 transition-colors">
+                        <Play size={14} />
                       </button>
                     )}
                   </div>
@@ -312,15 +332,15 @@ const CourseDetailsPage = () => {
         </div>
 
         {/* Skills Section */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mt-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">
+        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 mt-6">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">
             Skills You'll Learn
           </h2>
           <div className="flex flex-wrap gap-2">
             {course.skills.map((skill, index) => (
               <span
                 key={index}
-                className="px-3 py-2 bg-blue-100 text-blue-800 rounded-lg text-sm font-medium"
+                className="px-2 sm:px-3 py-1 sm:py-2 bg-blue-100 text-blue-800 rounded-lg text-xs sm:text-sm font-medium"
               >
                 {skill}
               </span>
@@ -345,31 +365,38 @@ const CourseDetailsPage = () => {
           {course.lessons.every((l) => l.completed) ? (
             // Course completed - show completion options
             <div className="space-y-4">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
-                <div className="text-6xl mb-4">🎉</div>
-                <h3 className="text-xl font-bold text-green-800 mb-2">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 sm:p-6 text-center">
+                <div className="text-4xl sm:text-6xl mb-4">🎉</div>
+                <h3 className="text-lg sm:text-xl font-bold text-green-800 mb-2">
                   Course Completed!
                 </h3>
-                <p className="text-green-600 mb-4">
+                <p className="text-green-600 mb-4 text-sm sm:text-base">
                   Congratulations! You've successfully completed all lessons in
                   this course.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <button
                     onClick={() => navigate("/courses")}
-                    className="bg-green-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-600 transition-all"
+                    className="bg-green-500 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium hover:bg-green-600 transition-all text-sm sm:text-base"
                   >
                     Browse More Courses
                   </button>
                   <button
-                    onClick={() => navigate("/dashboard")}
-                    className="bg-blue-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-600 transition-all"
+                    onClick={() => {
+                      const role = localStorage.getItem("role");
+                      if (role === "admin") {
+                        navigate("/dashboard/admin");
+                      } else {
+                        navigate("/dashboard");
+                      }
+                    }}
+                    className="bg-blue-500 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium hover:bg-blue-600 transition-all text-sm sm:text-base"
                   >
                     Go to Dashboard
                   </button>
                   <button
                     onClick={() => navigate("/")}
-                    className="bg-gray-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-gray-600 transition-all"
+                    className="bg-gray-500 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium hover:bg-gray-600 transition-all text-sm sm:text-base"
                   >
                     Back to Home
                   </button>
@@ -379,7 +406,7 @@ const CourseDetailsPage = () => {
           ) : (
             // Course in progress - show continue button
             <button
-              className="w-full py-3 px-4 rounded-lg font-medium transition-all flex items-center justify-center space-x-2 bg-blue-500 text-white hover:bg-blue-600"
+              className="w-full py-3 px-4 rounded-lg font-medium transition-all flex items-center justify-center space-x-2 bg-blue-500 text-white hover:bg-blue-600 text-sm sm:text-base"
               onClick={() => {
                 const nextAvailableLesson = course.lessons.find(
                   (l) => !l.completed && !l.locked

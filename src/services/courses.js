@@ -4,13 +4,10 @@ const API_URL = "https://ai-kid-tutor-api.onrender.com/courses";
 
 /**
  * Fetch all courses.
- * @param {string} token - Bearer token for authorization.
  * @returns {Promise<Object[]>}
  */
-export const getCourses = async (token) => {
-  const { data } = await axios.get(API_URL, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
+export const getCourses = async () => {
+  const { data } = await axios.get(API_URL);
   return data;
 };
 
@@ -61,6 +58,23 @@ export const updateCourseDuration = async (id, duration, token) => {
       },
     }
   );
+  return data;
+};
+
+/**
+ * Update a course by ID with full course data.
+ * @param {string} id - Course ID.
+ * @param {Object} courseData - Full course data to update.
+ * @param {string} token - Bearer token for authorization.
+ * @returns {Promise<Object>}
+ */
+export const updateCourse = async (id, courseData, token) => {
+  const { data } = await axios.put(`${API_URL}/${id}`, courseData, {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
   return data;
 };
 

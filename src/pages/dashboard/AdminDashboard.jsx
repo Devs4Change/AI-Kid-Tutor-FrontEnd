@@ -17,6 +17,7 @@ import {
 import {
   getCourses,
   createCourse,
+  updateCourse,
   updateCourseDuration,
   deleteCourse,
 } from "../../services/courses";
@@ -91,7 +92,7 @@ const TABS = [
   { id: "achievements", label: "Achievements", icon: Trophy },
   { id: "activity", label: "Recent Activity", icon: BarChart2 },
   { id: "analytics", label: "Analytics", icon: BarChart2 },
-  { id: "settings", label: "Settings", icon: Settings },
+  // Removed settings tab
 ];
 
 const AdminDashboard = () => {
@@ -103,6 +104,7 @@ const AdminDashboard = () => {
   const [usersLoading, setUsersLoading] = useState(false);
   const [achievementsLoading, setAchievementsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [statsReady, setStatsReady] = useState(false);
   const [success, setSuccess] = useState(null);
 
   // Modal states
@@ -112,32 +114,6 @@ const AdminDashboard = () => {
   const [formData, setFormData] = useState({});
   const [addItemType, setAddItemType] = useState("user");
 
-  // New state hooks for Settings tab
-  const [settingsSection, setSettingsSection] = useState("profile");
-  const [adminName, setAdminName] = useState(
-    localStorage.getItem("adminName") || "Admin User"
-  );
-  const [adminEmail, setAdminEmail] = useState(
-    localStorage.getItem("userEmail") || "admin@example.com"
-  );
-  const [editingProfile, setEditingProfile] = useState(false);
-  const [theme, setTheme] = useState(localStorage.getItem("theme") || "light");
-  const [platformName, setPlatformName] = useState(
-    localStorage.getItem("platformName") || "AI Kid Tutor"
-  );
-  const [maintenanceMode, setMaintenanceMode] = useState(
-    localStorage.getItem("maintenanceMode") === "true"
-  );
-  const [oldPassword, setOldPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordChanged, setPasswordChanged] = useState(false);
-  const [apiKey, setApiKey] = useState(
-    localStorage.getItem("apiKey") || "sk-1234-FAKE-KEY-5678"
-  );
-  const [apiKeyCopied, setApiKeyCopied] = useState(false);
-  const [passwordError, setPasswordError] = useState("");
-
   const token = localStorage.getItem("token");
 
   // Function to get completion data from localStorage
@@ -145,16 +121,26 @@ const AdminDashboard = () => {
     const completionData = {};
     const allKeys = Object.keys(localStorage);
 
+    console.log("=== COMPLETION DATA DEBUG ===");
+    console.log("All localStorage keys:", allKeys);
+
     // Find all completedLessons keys
     allKeys.forEach((key) => {
       if (key.startsWith("completedLessons_")) {
+        console.log(`Found completion key: ${key}`);
         // Parse key format: completedLessons_${courseId}_${userEmail}
         const parts = key.replace("completedLessons_", "").split("_");
+        console.log(`Parsed parts:`, parts);
         if (parts.length >= 2) {
           const courseId = parts[0];
           const userEmail = parts.slice(1).join("_"); // Handle emails with underscores
           const completedLessons = JSON.parse(
             localStorage.getItem(key) || "[]"
+          );
+
+          console.log(
+            `Course ID: ${courseId}, User: ${userEmail}, Lessons:`,
+            completedLessons
           );
 
           if (!completionData[userEmail]) {
@@ -165,29 +151,101 @@ const AdminDashboard = () => {
       }
     });
 
+    console.log("Final completion data:", completionData);
+    console.log("=== END COMPLETION DATA DEBUG ===");
+
     return completionData;
   };
 
   // Function to get user completion stats
-  const getUserCompletionStats = (userId) => {
+  const getUserCompletionStats = (userEmail) => {
+    // Don't calculate stats if courses aren't loaded yet
+    if (courses.length === 0) {
+      console.log("Courses not loaded yet, returning default stats");
+      return { totalCompletedLessons: 0, completedCourses: 0 };
+    }
+
     const completionData = getCompletionData();
     let totalCompletedLessons = 0;
     let completedCourses = 0;
 
-    // Find user by email (assuming userId is email for now)
-    const user = users.find((u) => u._id === userId || u.email === userId);
+    // Find user by email
+    const user = users.find((u) => u.email === userEmail);
     if (!user) return { totalCompletedLessons: 0, completedCourses: 0 };
 
-    const userEmail = user.email;
     const userCompletionData = completionData[userEmail] || {};
 
-    Object.values(userCompletionData).forEach((completedLessons) => {
-      totalCompletedLessons += completedLessons.length;
-      // If all lessons in a course are completed, count it as completed course
-      if (completedLessons.length > 0) {
-        completedCourses++;
+    // Debug logging
+    console.log(`=== USER COMPLETION STATS DEBUG ===`);
+    console.log(`User: ${user.name} (${userEmail})`);
+    console.log(`User completion data:`, userCompletionData);
+    console.log(
+      `Available courses:`,
+      courses.map((c) => ({
+        id: c.id,
+        _id: c._id,
+        title: c.title,
+        lessons: c.lessons,
+      }))
+    );
+
+    // Check all localStorage keys for this user
+    const allKeys = Object.keys(localStorage);
+    const userKeys = allKeys.filter((key) => key.includes(userEmail));
+    console.log(`All localStorage keys for user ${userEmail}:`, userKeys);
+
+    // Check for any completion keys with different formats
+    const completionKeys = allKeys.filter(
+      (key) => key.includes(userEmail) && key.includes("completed")
+    );
+    console.log(`Completion keys for user ${userEmail}:`, completionKeys);
+
+    // If no completion data, show this clearly
+    if (!userCompletionData || Object.keys(userCompletionData).length === 0) {
+      console.log(`❌ No completion data found for user ${userEmail}`);
+    }
+
+    // Count completed lessons and courses
+    Object.entries(userCompletionData).forEach(
+      ([courseId, completedLessons]) => {
+        totalCompletedLessons += completedLessons.length;
+
+        // Check if this course is fully completed by comparing with total lessons
+        // Try multiple ways to match course IDs
+        const course = courses.find(
+          (c) =>
+            c.id === courseId ||
+            c._id === courseId ||
+            String(c.id) === String(courseId) ||
+            String(c._id) === String(courseId)
+        );
+        if (course && course.lessons) {
+          const totalLessons = Array.isArray(course.lessons)
+            ? course.lessons.length
+            : 0;
+          console.log(
+            `Course ${course.title}: ${completedLessons.length}/${totalLessons} lessons completed`
+          );
+          if (totalLessons > 0 && completedLessons.length >= totalLessons) {
+            completedCourses++;
+            console.log(`✅ Course ${course.title} marked as completed`);
+          }
+        } else {
+          console.log(
+            `⚠️ Course with ID ${courseId} not found or has no lessons`
+          );
+          // Still count the lessons even if course not found
+          console.log(
+            `📝 Counting ${completedLessons.length} lessons from unknown course ${courseId}`
+          );
+        }
       }
-    });
+    );
+
+    console.log(
+      `Final stats: ${totalCompletedLessons} lessons, ${completedCourses} courses`
+    );
+    console.log(`=== END DEBUG ===`);
 
     return {
       totalCompletedLessons,
@@ -227,13 +285,19 @@ const AdminDashboard = () => {
         if (activeTab === "courses") {
           setCoursesLoading(true);
           const token = localStorage.getItem("token");
-          const data = await getCourses(token);
+          const data = await getCourses();
           setCourses(data);
         } else if (activeTab === "users") {
           setUsersLoading(true);
           const token = localStorage.getItem("token");
           const data = await getUsers(token);
           setUsers(data);
+
+          // Also fetch courses for completion stats calculation
+          if (courses.length === 0) {
+            const coursesData = await getCourses();
+            setCourses(coursesData);
+          }
         } else if (activeTab === "achievements") {
           setAchievementsLoading(true);
           const data = await getAchievements();
@@ -250,30 +314,87 @@ const AdminDashboard = () => {
     };
 
     fetchData();
-  }, [activeTab]);
+  }, [activeTab, courses.length]);
+
+  // Set stats ready when both users and courses are loaded
+  useEffect(() => {
+    if (
+      users.length > 0 &&
+      courses.length > 0 &&
+      !usersLoading &&
+      !coursesLoading
+    ) {
+      setStatsReady(true);
+      console.log("Stats ready: Users and courses loaded");
+
+      // Debug: Show all localStorage completion data
+      console.log("=== ALL LOCALSTORAGE COMPLETION DATA ===");
+      const allKeys = Object.keys(localStorage);
+      const completionKeys = allKeys.filter((key) =>
+        key.startsWith("completedLessons_")
+      );
+      completionKeys.forEach((key) => {
+        const value = localStorage.getItem(key);
+        console.log(`${key}:`, JSON.parse(value || "[]"));
+      });
+      console.log("=== END LOCALSTORAGE DEBUG ===");
+    }
+  }, [users.length, courses.length, usersLoading, coursesLoading]);
+
+  // Debug: Show summary of all users and their completion status
+  useEffect(() => {
+    if (statsReady && users.length > 0) {
+      console.log("=== ALL USERS COMPLETION SUMMARY ===");
+      users.forEach((user) => {
+        const userEmail = user.email;
+        const userCompletionData = getCompletionData()[userEmail] || {};
+        const hasData = Object.keys(userCompletionData).length > 0;
+        console.log(
+          `${user.name} (${userEmail}): ${
+            hasData ? "Has completion data" : "No completion data"
+          }`
+        );
+      });
+      console.log("=== END SUMMARY ===");
+
+      // Add some test completion data for demonstration
+      if (users.length > 1) {
+        const testUser = users.find(
+          (u) => u.email !== "admin@ai-kid-tutor.com"
+        );
+        if (testUser) {
+          const testKey = `completedLessons_687b8105f06bfa48fb7bfa5b_${testUser.email}`;
+          if (!localStorage.getItem(testKey)) {
+            localStorage.setItem(testKey, JSON.stringify([1]));
+            console.log(
+              `🧪 Added test completion data for ${testUser.email}: 1 lesson`
+            );
+          }
+        }
+      }
+    }
+  }, [statsReady, users]);
 
   // Persist profile
   useEffect(() => {
-    localStorage.setItem("adminName", adminName);
-    localStorage.setItem("userEmail", adminEmail);
-  }, [adminName, adminEmail]);
+    // Removed settings persistence
+  }, []);
   // Persist theme
   useEffect(() => {
-    localStorage.setItem("theme", theme);
-    document.body.classList.toggle("dark", theme === "dark");
-  }, [theme]);
+    // Removed settings persistence
+  }, []);
   // Persist platform name
   useEffect(() => {
-    localStorage.setItem("platformName", platformName);
-  }, [platformName]);
+    // Removed settings persistence
+  }, []);
   // Persist maintenance mode
   useEffect(() => {
-    localStorage.setItem("maintenanceMode", maintenanceMode);
-  }, [maintenanceMode]);
+    // Removed settings persistence
+  }, []);
   // Persist API key
   useEffect(() => {
-    localStorage.setItem("apiKey", apiKey);
-  }, [apiKey]);
+    // Removed settings persistence
+  }, []);
 
   // CRUD Functions
   const handleAdd = async (itemType) => {
@@ -293,8 +414,12 @@ const AdminDashboard = () => {
               category: formData.category,
               level: formData.level,
               duration: formData.duration,
-              lessons: formData.lessons || [],
+              enrolled: formData.enrolled || 0,
+              rating: formData.rating || 0.0,
+              thumbnail: formData.thumbnail || "📚",
+              skills: formData.skills || [],
               status: formData.status || "Draft",
+              lessons: formData.lessons || [],
             },
             token
           );
@@ -344,8 +469,8 @@ const AdminDashboard = () => {
           );
           break;
         case "course":
-          await updateCourseDuration(id, formData.duration, token);
-          const updatedCourses = await getCourses(token);
+          await updateCourse(id, formData, token);
+          const updatedCourses = await getCourses();
           setCourses(updatedCourses);
           setSuccess("Course updated successfully!");
           setTimeout(() => setSuccess(null), 3000);
@@ -394,7 +519,7 @@ const AdminDashboard = () => {
           break;
         case "course":
           await deleteCourse(id, token);
-          const afterDeleteCourses = await getCourses(token);
+          const afterDeleteCourses = await getCourses();
           setCourses(afterDeleteCourses);
           break;
         case "achievement":
@@ -414,7 +539,22 @@ const AdminDashboard = () => {
 
   const openEditModal = (item, itemType) => {
     if (itemType === "course") {
-      setFormData({ duration: item.duration });
+      // Prepare course data for editing
+      const courseData = {
+        title: item.title || "",
+        description: item.description || "",
+        category: item.category || "",
+        level: item.level || "Beginner",
+        duration: item.duration || "",
+        enrolled: item.enrolled || 0,
+        rating: item.rating || 0.0,
+        thumbnail: item.thumbnail || "",
+        skills: item.skills || [],
+        skillsInput: Array.isArray(item.skills) ? item.skills.join(", ") : "",
+        status: item.status || "Draft",
+        lessons: item.lessons || [],
+      };
+      setFormData(courseData);
     } else {
       setFormData(item);
     }
@@ -499,18 +639,17 @@ const AdminDashboard = () => {
                         Email
                       </th>
                       <th className="py-2 text-xs sm:text-sm">Role</th>
-                      <th className="py-2 text-xs sm:text-sm hidden md:table-cell">
-                        Lessons
-                      </th>
-                      <th className="py-2 text-xs sm:text-sm hidden md:table-cell">
-                        Courses
-                      </th>
+                      <th className="py-2 text-xs sm:text-sm">Lessons</th>
+                      <th className="py-2 text-xs sm:text-sm">Courses</th>
                       <th className="py-2 text-xs sm:text-sm">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {users.map((user) => {
-                      const completionStats = getUserCompletionStats(user._id);
+                      // Use user.email as the unique identifier for completion stats
+                      const completionStats = getUserCompletionStats(
+                        user.email
+                      );
                       return (
                         <tr
                           key={user._id}
@@ -525,14 +664,18 @@ const AdminDashboard = () => {
                           <td className="py-2 text-xs sm:text-sm capitalize">
                             {user.role}
                           </td>
-                          <td className="py-2 text-xs sm:text-sm hidden md:table-cell">
+                          <td className="py-2 text-xs sm:text-sm">
                             <span className="bg-blue-100 text-blue-800 px-1 sm:px-2 py-1 rounded-full text-xs font-medium">
-                              {completionStats.totalCompletedLessons}
+                              {statsReady
+                                ? completionStats.totalCompletedLessons
+                                : "..."}
                             </span>
                           </td>
-                          <td className="py-2 text-xs sm:text-sm hidden md:table-cell">
+                          <td className="py-2 text-xs sm:text-sm">
                             <span className="bg-green-100 text-green-800 px-1 sm:px-2 py-1 rounded-full text-xs font-medium">
-                              {completionStats.completedCourses}
+                              {statsReady
+                                ? completionStats.completedCourses
+                                : "..."}
                             </span>
                           </td>
                           <td className="py-2 space-x-1 sm:space-x-2">
@@ -788,7 +931,7 @@ const AdminDashboard = () => {
               );
               const totalUsers = users.length;
               const activeUsers = users.filter((user) => {
-                const userStats = getUserCompletionStats(user._id);
+                const userStats = getUserCompletionStats(user.email);
                 return userStats.totalCompletedLessons > 0;
               }).length;
 
@@ -828,267 +971,14 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Settings Tab */}
-        {activeTab === "settings" && (
-          <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl shadow-lg p-0 mb-8 max-w-3xl mx-auto flex flex-col md:flex-row">
-            {/* Sidebar Navigation */}
-            <div className="w-full md:w-1/4 border-r border-blue-100 bg-white rounded-l-xl flex flex-row md:flex-col">
-              {[
-                { id: "profile", label: "Profile", icon: UserPlus },
-                { id: "theme", label: "Theme", icon: Moon },
-                { id: "security", label: "Security", icon: Lock },
-                { id: "platform", label: "Platform", icon: BookOpen },
-                { id: "api", label: "API Keys", icon: Key },
-              ].map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setSettingsSection(item.id)}
-                  className={`flex items-center gap-2 px-4 py-3 w-full text-left font-medium transition-colors border-b md:border-b-0 md:border-r-0 md:border-l-4 md:rounded-none md:rounded-l-xl ${
-                    settingsSection === item.id
-                      ? "bg-blue-50 md:border-blue-500 text-blue-700"
-                      : "hover:bg-blue-50 text-gray-700"
-                  }`}
-                >
-                  <item.icon className="w-5 h-5" />
-                  {item.label}
-                </button>
-              ))}
-            </div>
-            {/* Main Content */}
-            <div className="flex-1 p-8 space-y-8">
-              {/* Profile Section */}
-              {settingsSection === "profile" && (
-                <div className="bg-white rounded-lg shadow p-6 flex flex-col gap-4 border border-blue-100">
-                  <div className="flex items-center gap-4 mb-4">
-                    <img
-                      src={`https://ui-avatars.com/api/?name=${encodeURIComponent(
-                        adminName
-                      )}&background=4f8ef7&color=fff`}
-                      alt="Admin Avatar"
-                      className="w-16 h-16 rounded-full border-2 border-blue-200"
-                    />
-                    <div>
-                      <div className="text-lg font-bold text-gray-800">
-                        {adminName}
-                      </div>
-                      <div className="text-gray-500 text-sm">{adminEmail}</div>
-                    </div>
-                  </div>
-                  {editingProfile ? (
-                    <>
-                      <input
-                        type="text"
-                        value={adminName}
-                        onChange={(e) => setAdminName(e.target.value)}
-                        className="p-2 border border-gray-300 rounded mb-2"
-                      />
-                      <input
-                        type="email"
-                        value={adminEmail}
-                        onChange={(e) => setAdminEmail(e.target.value)}
-                        className="p-2 border border-gray-300 rounded mb-2"
-                      />
-                      <button
-                        onClick={() => setEditingProfile(false)}
-                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 font-medium"
-                      >
-                        Save
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => setEditingProfile(true)}
-                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-blue-100 font-medium w-fit"
-                    >
-                      Edit Profile
-                    </button>
-                  )}
-                </div>
-              )}
-              {/* Theme Section */}
-              {settingsSection === "theme" && (
-                <div className="bg-white rounded-lg shadow p-6 flex flex-col gap-4 border border-blue-100 items-center">
-                  <div className="font-semibold text-gray-800 text-lg flex items-center gap-2 mb-2">
-                    <Moon className="w-5 h-5 text-indigo-400" /> Theme
-                  </div>
-                  <button
-                    onClick={() =>
-                      setTheme(theme === "light" ? "dark" : "light")
-                    }
-                    className={`px-6 py-2 rounded-lg font-medium transition-colors focus:outline-none text-lg ${
-                      theme === "dark"
-                        ? "bg-gray-800 text-white"
-                        : "bg-gray-200 text-gray-800"
-                    }`}
-                  >
-                    {theme === "dark" ? "Dark Mode" : "Light Mode"}
-                  </button>
-                  <div className="text-gray-500 text-sm">
-                    Switch between light and dark mode for your dashboard.
-                  </div>
-                </div>
-              )}
-              {/* Security Section */}
-              {settingsSection === "security" && (
-                <div className="bg-white rounded-lg shadow p-6 flex flex-col gap-4 border border-blue-100 max-w-md">
-                  <div className="font-semibold text-gray-800 text-lg flex items-center gap-2 mb-2">
-                    <Lock className="w-5 h-5 text-red-400" /> Change Password
-                  </div>
-                  <input
-                    type="password"
-                    placeholder="Old Password"
-                    value={oldPassword}
-                    onChange={(e) => setOldPassword(e.target.value)}
-                    className="p-2 border border-gray-300 rounded"
-                  />
-                  <input
-                    type="password"
-                    placeholder="New Password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="p-2 border border-gray-300 rounded"
-                  />
-                  <input
-                    type="password"
-                    placeholder="Confirm New Password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="p-2 border border-gray-300 rounded"
-                  />
-                  <button
-                    onClick={() => {
-                      setPasswordError("");
-                      const storedPassword =
-                        localStorage.getItem("adminPassword") || "admin123";
-                      if (oldPassword !== storedPassword) {
-                        setPasswordError("Old password is incorrect.");
-                        return;
-                      }
-                      if (newPassword !== confirmPassword) {
-                        setPasswordError("Passwords do not match.");
-                        return;
-                      }
-                      localStorage.setItem("adminPassword", newPassword);
-                      setPasswordChanged(true);
-                      setTimeout(() => setPasswordChanged(false), 2000);
-                      setOldPassword("");
-                      setNewPassword("");
-                      setConfirmPassword("");
-                    }}
-                    className="px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 font-medium mt-2"
-                    disabled={!oldPassword || !newPassword || !confirmPassword}
-                  >
-                    Change Password
-                  </button>
-                  {passwordChanged && (
-                    <div className="text-green-600 mt-2 font-medium">
-                      Password changed successfully!
-                    </div>
-                  )}
-                  {passwordError && (
-                    <div className="text-red-600 mt-2 font-medium">
-                      {passwordError}
-                    </div>
-                  )}
-                </div>
-              )}
-              {/* Platform Section */}
-              {settingsSection === "platform" && (
-                <div className="bg-white rounded-lg shadow p-6 flex flex-col gap-4 border border-blue-100">
-                  <div className="font-semibold text-gray-800 text-lg flex items-center gap-2 mb-2">
-                    <BookOpen className="w-5 h-5 text-blue-400" /> Platform Info
-                  </div>
-                  <input
-                    type="text"
-                    value={platformName}
-                    onChange={(e) => setPlatformName(e.target.value)}
-                    className="p-2 border border-gray-300 rounded mb-2"
-                  />
-                  <div className="flex items-center justify-between">
-                    <div className="font-medium text-gray-700">
-                      Maintenance Mode
-                    </div>
-                    <button
-                      onClick={() => setMaintenanceMode(!maintenanceMode)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-colors focus:outline-none ${
-                        maintenanceMode
-                          ? "bg-red-500 text-white hover:bg-red-600"
-                          : "bg-green-500 text-white hover:bg-green-600"
-                      }`}
-                    >
-                      {maintenanceMode ? "Disable" : "Enable"}
-                    </button>
-                  </div>
-                  {maintenanceMode && (
-                    <div className="bg-red-100 text-red-700 rounded-lg p-3 text-center font-semibold mt-2">
-                      Maintenance mode is enabled. Users cannot access the
-                      platform.
-                    </div>
-                  )}
-                </div>
-              )}
-              {/* API Key Section */}
-              {settingsSection === "api" && (
-                <div className="bg-white rounded-lg shadow p-6 flex flex-col gap-4 border border-blue-100 max-w-md">
-                  <div className="font-semibold text-gray-800 text-lg flex items-center gap-2 mb-2">
-                    <Key className="w-5 h-5 text-green-400" /> API Key
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={apiKey}
-                      readOnly
-                      className="flex-1 p-2 border border-gray-300 rounded bg-gray-50 font-mono"
-                    />
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(apiKey);
-                        setApiKeyCopied(true);
-                        setTimeout(() => setApiKeyCopied(false), 1500);
-                      }}
-                      className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 font-medium"
-                    >
-                      {apiKeyCopied ? "Copied!" : "Copy"}
-                    </button>
-                    <button
-                      onClick={() => {
-                        const newKey =
-                          "sk-" +
-                          Math.random()
-                            .toString(36)
-                            .substring(2, 10)
-                            .toUpperCase() +
-                          "-FAKE-" +
-                          Math.random()
-                            .toString(36)
-                            .substring(2, 8)
-                            .toUpperCase();
-                        setApiKey(newKey);
-                        setApiKeyCopied(false);
-                      }}
-                      className="px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 font-medium"
-                    >
-                      Regenerate
-                    </button>
-                  </div>
-                  <div className="text-gray-500 text-xs">
-                    Keep your API key secret. Regenerate if you suspect it has
-                    been compromised.
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Add Modal */}
         {showAddModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg w-full max-w-md flex flex-col">
-              <h3 className="text-lg font-bold mb-3 px-6 pt-6">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg w-full max-w-md flex flex-col max-h-[90vh]">
+              <h3 className="text-lg font-bold mb-3 px-6 pt-6 flex-shrink-0">
                 Add {addItemType.charAt(0).toUpperCase() + addItemType.slice(1)}
               </h3>
-              <div className="space-y-3 px-6">
+              <div className="space-y-3 px-6 overflow-y-auto flex-1">
                 {addItemType === "course" && (
                   <>
                     <div className="grid grid-cols-2 gap-2">
@@ -1113,6 +1003,19 @@ const AdminDashboard = () => {
                         required
                       />
                     </div>
+                    <textarea
+                      placeholder="Description"
+                      value={formData.description || ""}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          description: e.target.value,
+                        })
+                      }
+                      className="w-full p-2 border border-gray-300 rounded"
+                      rows="3"
+                      required
+                    />
                     <div className="grid grid-cols-3 gap-2">
                       <select
                         value={formData.level || "Beginner"}
@@ -1148,12 +1051,71 @@ const AdminDashboard = () => {
                         required
                       />
                     </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <input
+                        type="number"
+                        placeholder="Enrolled (0)"
+                        value={formData.enrolled || ""}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            enrolled: parseInt(e.target.value) || 0,
+                          })
+                        }
+                        className="w-full p-2 border border-gray-300 rounded"
+                      />
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="5"
+                        placeholder="Rating (0.0)"
+                        value={formData.rating || ""}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            rating: parseFloat(e.target.value) || 0.0,
+                          })
+                        }
+                        className="w-full p-2 border border-gray-300 rounded"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Thumbnail (emoji)"
+                        value={formData.thumbnail || ""}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            thumbnail: e.target.value,
+                          })
+                        }
+                        className="w-full p-2 border border-gray-300 rounded"
+                      />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Skills (comma-separated)"
+                      value={formData.skillsInput || ""}
+                      onChange={(e) => {
+                        const skillsArray = e.target.value
+                          .split(",")
+                          .map((skill) => skill.trim())
+                          .filter((skill) => skill);
+                        setFormData({
+                          ...formData,
+                          skillsInput: e.target.value,
+                          skills: skillsArray,
+                        });
+                      }}
+                      className="w-full p-2 border border-gray-300 rounded"
+                      placeholder="Skills (comma-separated, e.g., AI Concepts, Problem Solving, Critical Thinking)"
+                    />
                     {/* Dynamic Lessons Array */}
                     <div className="border rounded p-2">
                       <div className="font-semibold mb-2 text-sm">Lessons</div>
                       {(formData.lessons || []).map((lesson, idx) => (
-                        <div key={idx} className="mb-2 border-b pb-2">
-                          <div className="grid grid-cols-2 gap-1 mb-1">
+                        <div key={idx} className="mb-4 border-b pb-3">
+                          <div className="grid grid-cols-2 gap-2 mb-2">
                             <input
                               type="text"
                               placeholder="Lesson Title"
@@ -1163,42 +1125,102 @@ const AdminDashboard = () => {
                                 updated[idx].title = e.target.value;
                                 setFormData({ ...formData, lessons: updated });
                               }}
-                              className="w-full p-1 border border-gray-200 rounded text-sm"
+                              className="w-full p-2 border border-gray-200 rounded text-sm"
                               required
                             />
                             <input
                               type="text"
-                              placeholder="Duration"
+                              placeholder="Duration (e.g., 30 minutes)"
                               value={lesson.duration || ""}
                               onChange={(e) => {
                                 const updated = [...formData.lessons];
                                 updated[idx].duration = e.target.value;
                                 setFormData({ ...formData, lessons: updated });
                               }}
-                              className="w-full p-1 border border-gray-200 rounded text-sm"
+                              className="w-full p-2 border border-gray-200 rounded text-sm"
                             />
                           </div>
-                          <input
-                            type="text"
-                            placeholder="Lesson Content"
-                            value={lesson.content || ""}
-                            onChange={(e) => {
-                              const updated = [...formData.lessons];
-                              updated[idx].content = e.target.value;
-                              setFormData({ ...formData, lessons: updated });
-                            }}
-                            className="w-full p-1 border border-gray-200 rounded text-sm mb-1"
-                          />
+
+                          {/* Lesson Content Structure */}
+                          <div className="space-y-2">
+                            <textarea
+                              placeholder="Explanation"
+                              value={lesson.content?.explanation || ""}
+                              onChange={(e) => {
+                                const updated = [...formData.lessons];
+                                if (!updated[idx].content)
+                                  updated[idx].content = {};
+                                updated[idx].content.explanation =
+                                  e.target.value;
+                                setFormData({ ...formData, lessons: updated });
+                              }}
+                              className="w-full p-2 border border-gray-200 rounded text-sm"
+                              rows="2"
+                            />
+                            <input
+                              type="text"
+                              placeholder="Examples (comma-separated)"
+                              value={lesson.content?.examplesInput || ""}
+                              onChange={(e) => {
+                                const examplesArray = e.target.value
+                                  .split(",")
+                                  .map((example) => example.trim())
+                                  .filter((example) => example);
+                                const updated = [...formData.lessons];
+                                if (!updated[idx].content)
+                                  updated[idx].content = {};
+                                updated[idx].content.examples = examplesArray;
+                                updated[idx].content.examplesInput =
+                                  e.target.value;
+                                setFormData({ ...formData, lessons: updated });
+                              }}
+                              className="w-full p-2 border border-gray-200 rounded text-sm"
+                            />
+                            <input
+                              type="text"
+                              placeholder="Activity"
+                              value={lesson.content?.activity || ""}
+                              onChange={(e) => {
+                                const updated = [...formData.lessons];
+                                if (!updated[idx].content)
+                                  updated[idx].content = {};
+                                updated[idx].content.activity = e.target.value;
+                                setFormData({ ...formData, lessons: updated });
+                              }}
+                              className="w-full p-2 border border-gray-200 rounded text-sm"
+                            />
+                            <input
+                              type="text"
+                              placeholder="Key Concepts (comma-separated)"
+                              value={lesson.content?.key_conceptsInput || ""}
+                              onChange={(e) => {
+                                const conceptsArray = e.target.value
+                                  .split(",")
+                                  .map((concept) => concept.trim())
+                                  .filter((concept) => concept);
+                                const updated = [...formData.lessons];
+                                if (!updated[idx].content)
+                                  updated[idx].content = {};
+                                updated[idx].content.key_concepts =
+                                  conceptsArray;
+                                updated[idx].content.key_conceptsInput =
+                                  e.target.value;
+                                setFormData({ ...formData, lessons: updated });
+                              }}
+                              className="w-full p-2 border border-gray-200 rounded text-sm"
+                            />
+                          </div>
+
                           <button
                             type="button"
-                            className="text-xs text-red-500"
+                            className="text-xs text-red-500 mt-2"
                             onClick={() => {
                               const updated = [...formData.lessons];
                               updated.splice(idx, 1);
                               setFormData({ ...formData, lessons: updated });
                             }}
                           >
-                            Remove
+                            Remove Lesson
                           </button>
                         </div>
                       ))}
@@ -1210,7 +1232,16 @@ const AdminDashboard = () => {
                             ...formData,
                             lessons: [
                               ...(formData.lessons || []),
-                              { title: "", content: "", duration: "" },
+                              {
+                                title: "",
+                                duration: "",
+                                content: {
+                                  explanation: "",
+                                  examples: [],
+                                  activity: "",
+                                  key_concepts: [],
+                                },
+                              },
                             ],
                           });
                         }}
@@ -1218,22 +1249,9 @@ const AdminDashboard = () => {
                         + Add Lesson
                       </button>
                     </div>
-                    <textarea
-                      placeholder="Description"
-                      value={formData.description || ""}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          description: e.target.value,
-                        })
-                      }
-                      className="w-full p-2 border border-gray-300 rounded"
-                      rows="2"
-                      required
-                    />
                     <div className="text-xs text-gray-500">
-                      Each lesson requires a title. Content and duration are
-                      optional.
+                      Each lesson requires a title. Content fields are optional
+                      but recommended for better learning experience.
                     </div>
                   </>
                 )}
@@ -1272,7 +1290,7 @@ const AdminDashboard = () => {
                   </>
                 )}
               </div>
-              <div className="flex justify-end space-x-2 mt-4 px-6 pb-6 bg-white border-t pt-4">
+              <div className="flex justify-end space-x-2 px-6 pb-6 bg-white border-t pt-4 flex-shrink-0">
                 <button
                   onClick={() => setShowAddModal(false)}
                   className="px-4 py-2 text-gray-600 hover:text-gray-800"
@@ -1292,14 +1310,14 @@ const AdminDashboard = () => {
 
         {/* Edit Modal */}
         {showEditModal && editingItem && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-bold mb-4">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg w-full max-w-md flex flex-col max-h-[90vh]">
+              <h3 className="text-lg font-bold mb-4 p-6 pb-0 flex-shrink-0">
                 Edit{" "}
                 {activeTab.slice(0, -1).charAt(0).toUpperCase() +
                   activeTab.slice(0, -1).slice(1)}
               </h3>
-              <div className="space-y-4">
+              <div className="space-y-4 p-6 overflow-y-auto flex-1">
                 {activeTab === "users" && (
                   <>
                     <input
@@ -1335,19 +1353,134 @@ const AdminDashboard = () => {
                 )}
                 {activeTab === "courses" && (
                   <>
-                    <input
-                      type="text"
-                      placeholder="Duration (e.g., 8 weeks)"
-                      value={formData.duration || ""}
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        placeholder="Title"
+                        value={formData.title || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, title: e.target.value })
+                        }
+                        className="w-full p-2 border border-gray-300 rounded"
+                        required
+                      />
+                      <input
+                        type="text"
+                        placeholder="Category"
+                        value={formData.category || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, category: e.target.value })
+                        }
+                        className="w-full p-2 border border-gray-300 rounded"
+                        required
+                      />
+                    </div>
+                    <textarea
+                      placeholder="Description"
+                      value={formData.description || ""}
                       onChange={(e) =>
-                        setFormData({ ...formData, duration: e.target.value })
+                        setFormData({
+                          ...formData,
+                          description: e.target.value,
+                        })
                       }
                       className="w-full p-2 border border-gray-300 rounded"
+                      rows="3"
                       required
                     />
-                    <div className="text-xs text-gray-500 mt-1">
-                      Only duration can be updated.
+                    <div className="grid grid-cols-3 gap-2">
+                      <select
+                        value={formData.level || "Beginner"}
+                        onChange={(e) =>
+                          setFormData({ ...formData, level: e.target.value })
+                        }
+                        className="w-full p-2 border border-gray-300 rounded"
+                        required
+                      >
+                        <option value="Beginner">Beginner</option>
+                        <option value="Intermediate">Intermediate</option>
+                        <option value="Advanced">Advanced</option>
+                      </select>
+                      <select
+                        value={formData.status || "Draft"}
+                        onChange={(e) =>
+                          setFormData({ ...formData, status: e.target.value })
+                        }
+                        className="w-full p-2 border border-gray-300 rounded"
+                        required
+                      >
+                        <option value="Published">Published</option>
+                        <option value="Draft">Draft</option>
+                      </select>
+                      <input
+                        type="text"
+                        placeholder="Duration"
+                        value={formData.duration || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, duration: e.target.value })
+                        }
+                        className="w-full p-2 border border-gray-300 rounded"
+                        required
+                      />
                     </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <input
+                        type="number"
+                        placeholder="Enrolled"
+                        value={formData.enrolled || ""}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            enrolled: parseInt(e.target.value) || 0,
+                          })
+                        }
+                        className="w-full p-2 border border-gray-300 rounded"
+                      />
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="5"
+                        placeholder="Rating"
+                        value={formData.rating || ""}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            rating: parseFloat(e.target.value) || 0.0,
+                          })
+                        }
+                        className="w-full p-2 border border-gray-300 rounded"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Thumbnail (emoji)"
+                        value={formData.thumbnail || ""}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            thumbnail: e.target.value,
+                          })
+                        }
+                        className="w-full p-2 border border-gray-300 rounded"
+                      />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Skills (comma-separated)"
+                      value={formData.skillsInput || ""}
+                      onChange={(e) => {
+                        const skillsArray = e.target.value
+                          .split(",")
+                          .map((skill) => skill.trim())
+                          .filter((skill) => skill);
+                        setFormData({
+                          ...formData,
+                          skillsInput: e.target.value,
+                          skills: skillsArray,
+                        });
+                      }}
+                      className="w-full p-2 border border-gray-300 rounded"
+                    />
                   </>
                 )}
                 {activeTab === "achievements" && (
@@ -1385,7 +1518,7 @@ const AdminDashboard = () => {
                   </>
                 )}
               </div>
-              <div className="flex justify-end space-x-2 mt-6">
+              <div className="flex justify-end space-x-2 p-6 pt-4 bg-white border-t flex-shrink-0">
                 <button
                   onClick={() => setShowEditModal(false)}
                   className="px-4 py-2 text-gray-600 hover:text-gray-800"

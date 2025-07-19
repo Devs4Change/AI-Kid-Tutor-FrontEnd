@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 import Sidebar from "../components/Sidebar";
 import AdminSidebar from "../components/AdminSidebar";
@@ -8,6 +8,7 @@ import { Sparkles } from "lucide-react";
 
 const DashboardLayout = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const userName = localStorage.getItem("userName") || "User";
   const userRole = localStorage.getItem("role") || "student";
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -21,11 +22,14 @@ const DashboardLayout = () => {
     navigate("/");
   };
 
+  // Only show AdminSidebar on /dashboard/admin
+  const isAdminRoute = location.pathname.startsWith("/dashboard/admin");
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 transition-colors duration-300">
       {/* Main Layout */}
       <div className="flex h-screen">
-        {userRole === "admin" ? (
+        {isAdminRoute ? (
           <AdminSidebar
             userName={userName}
             handleLogout={handleLogout}

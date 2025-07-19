@@ -19,7 +19,7 @@ import {
   Shield,
   Globe,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const Sidebar = ({
   userName,
@@ -31,9 +31,11 @@ const Sidebar = ({
   const [activeSection, setActiveSection] = useState("dashboard");
   const [expandedMenus, setExpandedMenus] = useState({});
   const navigate = useNavigate();
+  const location = useLocation();
 
   const role =
     typeof window !== "undefined" ? localStorage.getItem("role") : null;
+  const isAdminRoute = location.pathname.startsWith("/dashboard/admin");
   const navigationItems = [
     {
       id: "home",
@@ -47,8 +49,8 @@ const Sidebar = ({
       icon: Home,
       path: "/dashboard",
     },
-    // Only show Admin Panel if user is admin
-    ...(role === "admin"
+    // Only show Admin Panel if user is admin AND on /dashboard/admin route
+    ...(role === "admin" && isAdminRoute
       ? [
           {
             id: "admin",
@@ -85,6 +87,12 @@ const Sidebar = ({
       path: "/profile",
     },
     {
+      id: "customizeDashboard",
+      label: "Customize Dashboard",
+      icon: Settings,
+      path: null, // This will trigger a custom action
+    },
+    {
       id: "settings",
       label: "Settings",
       icon: Settings,
@@ -105,6 +113,9 @@ const Sidebar = ({
       toggleMenu(item.id);
     } else if (item.path) {
       navigate(item.path);
+    } else if (item.id === "customizeDashboard") {
+      // Trigger customize dashboard modal
+      window.dispatchEvent(new CustomEvent("openCustomizeDashboard"));
     }
     // Close mobile menu when item is clicked
     if (window.innerWidth < 768) {
@@ -315,6 +326,11 @@ const Sidebar = ({
                 setActiveSection(item.id);
                 if (item.path) {
                   navigate(item.path);
+                } else if (item.id === "customizeDashboard") {
+                  // Trigger customize dashboard modal
+                  window.dispatchEvent(
+                    new CustomEvent("openCustomizeDashboard")
+                  );
                 }
                 // Close mobile menu when item is clicked
                 if (window.innerWidth < 768) {

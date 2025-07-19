@@ -30,6 +30,12 @@ const Dashboard = () => {
     completedCourses: 0,
   });
 
+  // Add state for overall progress
+  const [overallProgress, setOverallProgress] = useState(0);
+
+  // Add state for courses tab
+  // Remove coursesTab state
+
   // Get user info from localStorage
   const getUserInfo = () => {
     const userName = localStorage.getItem("userName") || "Student";
@@ -56,15 +62,20 @@ const Dashboard = () => {
     let completedCourses = 0;
 
     coursesData.forEach((course) => {
-      const completedLessonsKey = `completedLessons_${course._id}_${currentUserEmail}`;
+      const completedLessonsKey = `completedLessons_${course.id}_${currentUserEmail}`;
       const completedLessons = JSON.parse(
         localStorage.getItem(completedLessonsKey) || "[]"
       );
+      const totalLessons = Array.isArray(course.lessons)
+        ? course.lessons.length
+        : typeof course.lessons === "number"
+        ? course.lessons
+        : 5;
       const courseCompletedLessons = completedLessons.length;
+      // Use totalLessons and courseCompletedLessons for all stats
       totalLessonsCompleted += courseCompletedLessons;
 
       // Calculate stars based on completion (1 star per 25% completion)
-      const totalLessons = course.lessons || 5;
       const completionPercentage =
         totalLessons > 0 ? (courseCompletedLessons / totalLessons) * 100 : 0;
       const courseStars = Math.floor(completionPercentage / 25);
@@ -163,11 +174,15 @@ const Dashboard = () => {
         const currentUserEmail =
           localStorage.getItem("userEmail") || "anonymous";
         const coursesWithFrontendFields = coursesData.map((course) => {
-          const completedLessonsKey = `completedLessons_${course._id}_${currentUserEmail}`;
+          const completedLessonsKey = `completedLessons_${course.id}_${currentUserEmail}`;
           const completedLessons = JSON.parse(
             localStorage.getItem(completedLessonsKey) || "[]"
           );
-          const totalLessons = course.lessons || 5;
+          const totalLessons = Array.isArray(course.lessons)
+            ? course.lessons.length
+            : typeof course.lessons === "number"
+            ? course.lessons
+            : 5;
           const completedLessonsCount = completedLessons.length;
           const progress =
             totalLessons > 0 ? (completedLessonsCount / totalLessons) * 100 : 0;
@@ -177,7 +192,7 @@ const Dashboard = () => {
           const stars = Math.floor(progress / 25);
           return {
             ...course,
-            id: course._id,
+            id: course.id, // ensure id is used everywhere
             completed,
             progress,
             stars,
@@ -185,6 +200,57 @@ const Dashboard = () => {
         });
         setCourses(coursesWithFrontendFields);
         setStats(calculatedStats);
+
+        // Calculate overall progress
+        const totalLessons = coursesWithFrontendFields.reduce((sum, c) => {
+          console.log(
+            "Course:",
+            c.title,
+            "Lessons:",
+            c.lessons,
+            "Type:",
+            typeof c.lessons
+          );
+          return (
+            sum +
+            (Array.isArray(c.lessons)
+              ? c.lessons.length
+              : typeof c.lessons === "number"
+              ? c.lessons
+              : 5)
+          ); // Default to 5 if lessons is undefined or not a number/array
+        }, 0);
+        const totalCompletedLessons = coursesWithFrontendFields.reduce(
+          (sum, c) => {
+            const completedLessonsKey = `completedLessons_${c.id}_${currentUserEmail}`;
+            const completedLessons = JSON.parse(
+              localStorage.getItem(completedLessonsKey) || "[]"
+            );
+            console.log(
+              "Course:",
+              c.title,
+              "Completed lessons:",
+              completedLessons.length
+            );
+            return sum + completedLessons.length;
+          },
+          0
+        );
+
+        console.log(
+          "Total lessons:",
+          totalLessons,
+          "Total completed:",
+          totalCompletedLessons
+        );
+
+        const calculatedOverallProgress =
+          totalLessons > 0
+            ? Math.round((totalCompletedLessons / totalLessons) * 100)
+            : 0;
+
+        console.log("Overall progress:", calculatedOverallProgress);
+        setOverallProgress(calculatedOverallProgress);
       } catch (err) {
         console.error("Error fetching data:", err);
         setError("Failed to load data");
@@ -231,29 +297,29 @@ const Dashboard = () => {
     },
   ];
   // Calculate overall progress (all lessons completed / all lessons)
-  const totalLessons = courses.reduce(
-    (sum, c) =>
-      sum +
-      (Array.isArray(c.lessons)
-        ? c.lessons.length
-        : typeof c.lessons === "number"
-        ? c.lessons
-        : 0),
-    0
-  );
-  const totalCompletedLessons = courses.reduce((sum, c) => {
-    const completedLessonsKey = `completedLessons_${c._id}_${
-      localStorage.getItem("userEmail") || "anonymous"
-    }`;
-    const completedLessons = JSON.parse(
-      localStorage.getItem(completedLessonsKey) || "[]"
-    );
-    return sum + completedLessons.length;
-  }, 0);
-  const overallProgress =
-    totalLessons > 0
-      ? Math.round((totalCompletedLessons / totalLessons) * 100)
-      : 0;
+  // const totalLessons = courses.reduce(
+  //   (sum, c) =>
+  //     sum +
+  //     (Array.isArray(c.lessons)
+  //       ? c.lessons.length
+  //       : typeof c.lessons === "number"
+  //       ? c.lessons
+  //       : 0),
+  //   0
+  // );
+  // const totalCompletedLessons = courses.reduce((sum, c) => {
+  //   const completedLessonsKey = `completedLessons_${c.id}_${
+  //     localStorage.getItem("userEmail") || "anonymous"
+  //   }`;
+  //   const completedLessons = JSON.parse(
+  //     localStorage.getItem(completedLessonsKey) || "[]"
+  //   );
+  //   return sum + completedLessons.length;
+  // }, 0);
+  // const overallProgress =
+  //   totalLessons > 0
+  //     ? Math.round((totalCompletedLessons / totalLessons) * 100)
+  //     : 0;
 
   const userInfo = getUserInfo();
   const recentActivity = getRecentActivity();
@@ -353,13 +419,23 @@ const Dashboard = () => {
     return () => window.removeEventListener("quizCompleted", handler);
   }, [quizStats]);
 
+  // Listen for customize dashboard event from sidebar
+  useEffect(() => {
+    const handleOpenCustomize = () => {
+      setShowCustomize(true);
+    };
+    window.addEventListener("openCustomizeDashboard", handleOpenCustomize);
+    return () =>
+      window.removeEventListener("openCustomizeDashboard", handleOpenCustomize);
+  }, []);
+
   // Widget definitions
   const DASHBOARD_WIDGETS = [
     { id: "badges", label: "Badges" },
     { id: "recentActivity", label: "Recent Activity" },
     { id: "currentCourses", label: "Current Courses" },
-    { id: "recommendedCourses", label: "Recommended Courses" },
     { id: "completedCourses", label: "Completed Courses" },
+    { id: "recommendedCourses", label: "Recommended Courses" },
   ];
 
   const getWidgetPrefs = () => {
@@ -477,6 +553,11 @@ const Dashboard = () => {
           </div>
         );
       case "currentCourses":
+        console.log("Rendering currentCourses, courses:", courses);
+        console.log(
+          "Courses not completed:",
+          courses.filter((course) => !course.completed)
+        );
         return (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
             <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center">
@@ -571,7 +652,7 @@ const Dashboard = () => {
                 .filter(
                   (course) => !course.completed && (course.progress || 0) === 0
                 )
-                .slice(0, 3)
+                .slice(0, 2)
                 .map((course) => (
                   <div
                     key={course.id}
@@ -707,78 +788,104 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 transition-colors duration-300">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900 transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Welcome Section */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
-                Welcome back, {userInfo.name}! 👋
-              </h1>
-              <p className="text-gray-600 dark:text-gray-300 mt-2">
-                Ready to continue your AI learning journey?
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {new Date().toLocaleDateString("en-US", {
-                  weekday: "long",
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </p>
+        {/* Welcome Section - Redesigned */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-3xl shadow-2xl mb-8">
+          <div className="absolute inset-0 bg-black opacity-10"></div>
+          <div className="relative p-8 text-white">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex-1">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-12 h-12 bg-white bg-opacity-20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                    <span className="text-2xl">👋</span>
+                  </div>
+                  <div>
+                    <h1 className="text-3xl lg:text-4xl font-bold mb-2">
+                      Welcome back, {userInfo.name}!
+                    </h1>
+                    <p className="text-blue-100 text-lg">
+                      Ready to continue your AI learning adventure?
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-4 text-sm text-blue-100">
+                  <span className="flex items-center space-x-1">
+                    <div className="w-2 h-2 bg-blue-200 rounded-full animate-pulse"></div>
+                    <span>Online</span>
+                  </span>
+                  <span>•</span>
+                  <span>
+                    {new Date().toLocaleDateString("en-US", {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
+          {/* Decorative elements */}
+          <div className="absolute top-4 right-4 w-24 h-24 bg-white bg-opacity-10 rounded-full blur-xl"></div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        {/* Stats Grid - Redesigned */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {statsCards.map((card, index) => (
             <div
               key={index}
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6"
+              className="group relative bg-white dark:bg-gray-800 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 dark:border-gray-700"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                    {card.label}
-                  </p>
-                  <p className="text-2xl font-bold text-gray-800 dark:text-white">
-                    {card.value}
-                  </p>
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-700 dark:to-gray-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div
+                    className={`${card.color} p-3 rounded-xl text-white shadow-lg`}
+                  >
+                    <card.icon size={24} />
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
+                      {card.label}
+                    </p>
+                    <p className="text-2xl font-bold text-gray-800 dark:text-white">
+                      {card.value}
+                    </p>
+                  </div>
                 </div>
-                <div className={`${card.color} p-3 rounded-lg text-white`}>
-                  <card.icon size={24} />
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1">
+                  <div
+                    className={`${card.color.replace(
+                      "bg-",
+                      "bg-gradient-to-r from-"
+                    )} h-1 rounded-full transition-all duration-500`}
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        (parseInt(card.value) || 0) * 10
+                      )}%`,
+                    }}
+                  ></div>
                 </div>
               </div>
             </div>
           ))}
         </div>
 
-        {/* Customize Dashboard Button */}
-        <div className="flex justify-end mb-4">
-          <button
-            className="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 font-semibold shadow"
-            onClick={() => setShowCustomize(true)}
-          >
-            <SettingsIcon size={18} />
-            Customize Dashboard
-          </button>
-        </div>
         {/* Customize Modal */}
         {showCustomize && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl p-6 w-full max-w-md relative">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 w-full max-w-md relative border border-gray-200 dark:border-gray-700">
               <button
-                className="absolute top-3 right-3 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+                className="absolute top-4 right-4 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 onClick={() => setShowCustomize(false)}
                 aria-label="Close"
               >
-                <CloseIcon size={22} />
+                <CloseIcon size={20} />
               </button>
-              <h3 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">
+              <h3 className="text-xl font-bold mb-6 text-gray-800 dark:text-white">
                 Customize Dashboard
               </h3>
               <div className="space-y-3">
@@ -787,13 +894,13 @@ const Dashboard = () => {
                   return (
                     <div
                       key={w.id}
-                      className="flex items-center justify-between bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2 cursor-move"
+                      className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-xl px-4 py-3 cursor-move border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                       draggable
                       onDragStart={(e) => handleDragStart(e, idx)}
                       onDrop={(e) => handleDrop(e, idx)}
                       onDragOver={handleDragOver}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <GripVertical size={18} className="text-gray-400" />
                         <span className="font-medium text-gray-800 dark:text-gray-100">
                           {widget.label}
@@ -804,8 +911,11 @@ const Dashboard = () => {
                           type="checkbox"
                           checked={w.visible}
                           onChange={() => toggleWidget(w.id)}
+                          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                         />
-                        <span className="text-sm">Show</span>
+                        <span className="text-sm text-gray-600 dark:text-gray-300">
+                          Show
+                        </span>
                       </label>
                     </div>
                   );
@@ -813,7 +923,7 @@ const Dashboard = () => {
               </div>
               <div className="flex justify-end mt-6">
                 <button
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 shadow"
+                  className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 shadow-lg transition-all duration-200"
                   onClick={() => setShowCustomize(false)}
                 >
                   Done
@@ -822,30 +932,47 @@ const Dashboard = () => {
             </div>
           </div>
         )}
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        {/* Main Content Grid - Redesigned */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - Dynamic Widgets */}
-          <div className="lg:col-span-2 space-y-6">
-            {widgetPrefs
-              .filter(
-                (w) =>
-                  w.visible &&
-                  [
+          <div className="lg:col-span-2 space-y-8">
+            {(() => {
+              const courseWidgets = widgetPrefs
+                .filter(
+                  (w) =>
+                    w.visible &&
+                    [
+                      "currentCourses",
+                      "completedCourses",
+                      "recommendedCourses",
+                    ].includes(w.id)
+                )
+                .sort((a, b) => {
+                  const order = [
                     "currentCourses",
-                    "recommendedCourses",
                     "completedCourses",
-                  ].includes(w.id)
-              )
-              .map((w) => (
+                    "recommendedCourses",
+                  ];
+                  return order.indexOf(a.id) - order.indexOf(b.id);
+                });
+              console.log("Course widgets to render:", courseWidgets);
+              return courseWidgets.map((w) => (
                 <React.Fragment key={w.id}>{renderWidget(w.id)}</React.Fragment>
-              ))}
+              ));
+            })()}
           </div>
-          {/* Right Sidebar Content - Dynamic Widgets */}
-          <div className="space-y-6">
+
+          {/* Right Column - Static Widgets */}
+          <div className="space-y-8">
             {widgetPrefs
               .filter(
                 (w) => w.visible && ["badges", "recentActivity"].includes(w.id)
               )
+              .sort((a, b) => {
+                const order = ["badges", "recentActivity"];
+                return order.indexOf(a.id) - order.indexOf(b.id);
+              })
               .map((w) => (
                 <React.Fragment key={w.id}>{renderWidget(w.id)}</React.Fragment>
               ))}

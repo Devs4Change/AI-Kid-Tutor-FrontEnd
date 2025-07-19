@@ -18,14 +18,12 @@ const LessonPage = () => {
   const [lesson, setLesson] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [currentStep, setCurrentStep] = useState(0);
 
   useEffect(() => {
     const fetchLesson = async () => {
       try {
         setLoading(true);
-        const token = localStorage.getItem("token");
-        const courses = await getCourses(token);
+        const courses = await getCourses();
 
         // Find the course by ID (string comparison)
         const foundCourse = courses.find(
@@ -72,6 +70,18 @@ const LessonPage = () => {
           // Find the specific lesson
           const foundLesson = lessons.find((l) => l.id === parseInt(lessonId));
           if (foundLesson) {
+            // Debug logging to see lesson content structure
+            console.log("=== LESSON CONTENT DEBUG ===");
+            console.log("Lesson:", foundLesson);
+            console.log("Lesson content:", foundLesson.content);
+            console.log("Content length:", foundLesson.content?.length);
+            console.log(
+              "Is this the last lesson?",
+              parseInt(lessonId) === lessons.length
+            );
+            console.log("Total lessons in course:", lessons.length);
+            console.log("=== END DEBUG ===");
+
             setLesson(foundLesson);
           } else {
             setError("Lesson not found");
@@ -91,152 +101,126 @@ const LessonPage = () => {
   }, [courseId, lessonId]);
 
   const handleNextStep = () => {
-    if (currentStep < lesson.content.length - 1) {
-      setCurrentStep(currentStep + 1);
-    } else {
-      // Lesson completed - save to localStorage with user ID
-      const currentUserEmail = localStorage.getItem("userEmail") || "anonymous";
-      const completedLessonsKey = `completedLessons_${courseId}_${currentUserEmail}`;
-      const completedLessons = JSON.parse(
-        localStorage.getItem(completedLessonsKey) || "[]"
+    // Since lesson.content is an object, not an array, we always complete the lesson
+    // Lesson completed - save to localStorage with user ID
+    const currentUserEmail = localStorage.getItem("userEmail") || "anonymous";
+    const completedLessonsKey = `completedLessons_${courseId}_${currentUserEmail}`;
+    const completedLessons = JSON.parse(
+      localStorage.getItem(completedLessonsKey) || "[]"
+    );
+
+    // Debug logging
+    console.log("=== LESSON COMPLETION DEBUG ===");
+    console.log(`Course ID: ${courseId}`);
+    console.log(`Lesson ID: ${lessonId}`);
+    console.log(`User Email: ${currentUserEmail}`);
+    console.log(`Storage Key: ${completedLessonsKey}`);
+    console.log(`Before - Completed Lessons:`, completedLessons);
+
+    if (!completedLessons.includes(parseInt(lessonId))) {
+      completedLessons.push(parseInt(lessonId));
+      localStorage.setItem(
+        completedLessonsKey,
+        JSON.stringify(completedLessons)
       );
 
-      // Debug logging
-      console.log("=== LESSON COMPLETION DEBUG ===");
-      console.log(`Course ID: ${courseId}`);
-      console.log(`Lesson ID: ${lessonId}`);
-      console.log(`User Email: ${currentUserEmail}`);
-      console.log(`Storage Key: ${completedLessonsKey}`);
-      console.log(`Before - Completed Lessons:`, completedLessons);
+      console.log(`After - Completed Lessons:`, completedLessons);
+      console.log(
+        `Saved to localStorage:`,
+        localStorage.getItem(completedLessonsKey)
+      );
+      console.log("=== END DEBUG ===");
 
-      if (!completedLessons.includes(parseInt(lessonId))) {
-        completedLessons.push(parseInt(lessonId));
-        localStorage.setItem(
-          completedLessonsKey,
-          JSON.stringify(completedLessons)
-        );
+      // Track lesson completion activity for admin dashboard
+      const lessonActivity = {
+        userEmail: currentUserEmail,
+        userName: currentUserEmail.split("@")[0], // Use email prefix as name
+        role: localStorage.getItem("role") || "student",
+        timestamp: new Date().toISOString(),
+        action: "lesson_completed",
+        courseId: courseId,
+        lessonId: lessonId,
+        lessonTitle: lesson.title,
+      };
 
-        console.log(`After - Completed Lessons:`, completedLessons);
-        console.log(
-          `Saved to localStorage:`,
-          localStorage.getItem(completedLessonsKey)
-        );
-        console.log("=== END DEBUG ===");
+      const existingActivity = JSON.parse(
+        localStorage.getItem("userActivity") || "[]"
+      );
+      existingActivity.unshift(lessonActivity);
 
-        // Track lesson completion activity for admin dashboard
-        const currentUserEmail =
-          localStorage.getItem("userEmail") || "anonymous";
-        const lessonActivity = {
-          userEmail: currentUserEmail,
-          userName: currentUserEmail.split("@")[0], // Use email prefix as name
-          role: localStorage.getItem("role") || "student",
-          timestamp: new Date().toISOString(),
-          action: "lesson_completed",
-          courseId: courseId,
-          lessonId: lessonId,
-          lessonTitle: lesson.title,
-        };
-
-        const existingActivity = JSON.parse(
-          localStorage.getItem("userActivity") || "[]"
-        );
-        existingActivity.unshift(lessonActivity);
-
-        // Keep only last 50 activities
-        if (existingActivity.length > 50) {
-          existingActivity.splice(50);
-        }
-
-        localStorage.setItem("userActivity", JSON.stringify(existingActivity));
+      // Keep only last 50 activities
+      if (existingActivity.length > 50) {
+        existingActivity.splice(50);
       }
 
-      // Go to next lesson if it exists, else go to course overview
-      const nextLessonId = parseInt(lessonId) + 1;
-      if (course && nextLessonId <= course.lessons.length) {
-        navigate(`/course/${courseId}/lesson/${nextLessonId}`);
-      } else {
-        alert(
-          "Congratulations! You have completed all lessons in this course."
-        );
-        navigate(`/course/${courseId}`);
-      }
+      localStorage.setItem("userActivity", JSON.stringify(existingActivity));
     }
-  };
 
-  const handlePreviousStep = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
+    // Go to next lesson if it exists, else go to course overview
+    const nextLessonId = parseInt(lessonId) + 1;
+    if (course && nextLessonId <= course.lessons.length) {
+      navigate(`/course/${courseId}/lesson/${nextLessonId}`);
+    } else {
+      alert("Congratulations! You have completed all lessons in this course.");
+      navigate(`/course/${courseId}`);
     }
   };
 
   const renderContent = (content) => {
-    switch (content.type) {
-      case "video":
-        return (
-          <div className="bg-gray-100 rounded-lg p-8 text-center">
-            <div className="text-6xl mb-4">🎥</div>
-            <h3 className="text-xl font-bold mb-2">{content.title}</h3>
-            <p className="text-gray-600 mb-4">{content.description}</p>
-            <div className="bg-gray-200 rounded-lg p-4">
-              <p className="text-sm text-gray-500">
-                Video content would be embedded here
-              </p>
-            </div>
-          </div>
-        );
-      case "reading":
-        return (
-          <div className="bg-white rounded-lg p-6 border">
-            <h3 className="text-xl font-bold mb-4">{content.title}</h3>
-            <p className="text-gray-600 mb-4">{content.description}</p>
-            <div className="prose max-w-none">
-              <p>
-                This is where the lesson content would be displayed. It could
-                include:
-              </p>
-              <ul>
-                <li>Text explanations</li>
-                <li>Images and diagrams</li>
-                <li>Interactive elements</li>
-                <li>Examples and exercises</li>
-              </ul>
-              <p>
-                For now, this is placeholder content to demonstrate the lesson
-                structure.
-              </p>
-            </div>
-          </div>
-        );
-      case "quiz":
-        return (
+    return (
+      <div className="space-y-6">
+        {/* Explanation Section */}
+        {content.explanation && (
           <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
-            <h3 className="text-xl font-bold mb-4">{content.title}</h3>
-            <p className="text-gray-600 mb-4">{content.description}</p>
-            <div className="space-y-4">
-              <div className="bg-white p-4 rounded-lg border">
-                <p className="font-medium mb-2">Sample Question:</p>
-                <p className="mb-3">What is the main topic of this lesson?</p>
-                <div className="space-y-2">
-                  <label className="flex items-center">
-                    <input type="radio" name="quiz" className="mr-2" />
-                    Option A
-                  </label>
-                  <label className="flex items-center">
-                    <input type="radio" name="quiz" className="mr-2" />
-                    Option B
-                  </label>
-                  <label className="flex items-center">
-                    <input type="radio" name="quiz" className="mr-2" />
-                    Option C
-                  </label>
+            <h3 className="text-xl font-bold mb-4 text-blue-800">
+              Explanation
+            </h3>
+            <p className="text-gray-700 leading-relaxed">
+              {content.explanation}
+            </p>
+          </div>
+        )}
+
+        {/* Examples Section */}
+        {content.examples && content.examples.length > 0 && (
+          <div className="bg-green-50 rounded-lg p-6 border border-green-200">
+            <h3 className="text-xl font-bold mb-4 text-green-800">Examples</h3>
+            <div className="space-y-3">
+              {content.examples.map((example, index) => (
+                <div key={index} className="bg-white p-4 rounded-lg border">
+                  <p className="text-gray-700">{example}</p>
                 </div>
-              </div>
+              ))}
             </div>
           </div>
-        );
-      default:
-        return <div>Content type not supported</div>;
-    }
+        )}
+
+        {/* Key Concepts Section */}
+        {content.key_concepts && content.key_concepts.length > 0 && (
+          <div className="bg-purple-50 rounded-lg p-6 border border-purple-200">
+            <h3 className="text-xl font-bold mb-4 text-purple-800">
+              Key Concepts
+            </h3>
+            <ul className="space-y-2">
+              {content.key_concepts.map((concept, index) => (
+                <li key={index} className="flex items-start">
+                  <span className="text-purple-500 mr-2">•</span>
+                  <span className="text-gray-700">{concept}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Activity Section */}
+        {content.activity && (
+          <div className="bg-orange-50 rounded-lg p-6 border border-orange-200">
+            <h3 className="text-xl font-bold mb-4 text-orange-800">Activity</h3>
+            <p className="text-gray-700">{content.activity}</p>
+          </div>
+        )}
+      </div>
+    );
   };
 
   if (loading) {
@@ -266,6 +250,22 @@ const LessonPage = () => {
     );
   }
 
+  if (!lesson || !lesson.content) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-6 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600">Lesson not found or missing content.</p>
+          <button
+            onClick={() => navigate(`/course/${courseId}`)}
+            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 mt-4"
+          >
+            Back to Course
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-6 flex items-center justify-center">
       <div className="bg-white rounded-lg shadow-xl p-8 max-w-4xl w-full">
@@ -277,11 +277,11 @@ const LessonPage = () => {
             <ChevronLeft className="h-6 w-6" />
           </button>
           <h1 className="text-3xl font-bold text-center flex-1">
-            {lesson.title}
+            {lesson.title || "Untitled Lesson"}
           </h1>
           <div className="flex items-center">
             <Clock className="h-5 w-5 text-gray-500 mr-2" />
-            <span>{lesson.duration}</span>
+            <span>{lesson.duration || ""}</span>
           </div>
         </div>
 
@@ -296,32 +296,21 @@ const LessonPage = () => {
           </div>
         </div>
 
-        <div className="flex justify-between items-center mb-6">
-          <button
-            onClick={handlePreviousStep}
-            disabled={currentStep === 0}
-            className="text-gray-600 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Previous
-          </button>
-          <button
-            onClick={handleNextStep}
-            className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600"
-          >
-            {currentStep < lesson.content.length - 1
-              ? "Next"
-              : "Complete Lesson"}
-          </button>
+        <div className="mb-8">
+          {lesson.content ? renderContent(lesson.content) : null}
         </div>
 
-        <div className="mt-8">
-          <h2 className="text-2xl font-bold mb-4">
-            {lesson.content[currentStep].title}
-          </h2>
-          <p className="text-gray-600 mb-4">
-            {lesson.content[currentStep].description}
-          </p>
-          {renderContent(lesson.content[currentStep])}
+        <div className="flex justify-center items-center pt-6 border-t border-gray-200">
+          <button
+            onClick={handleNextStep}
+            className="bg-blue-500 text-white px-8 py-3 rounded-lg hover:bg-blue-600 font-medium text-lg"
+          >
+            {(() => {
+              // Only show "Complete Lesson" if this is the last lesson in the course
+              const isLastLesson = parseInt(lessonId) === course.lessons.length;
+              return isLastLesson ? "Complete Lesson" : "Next";
+            })()}
+          </button>
         </div>
       </div>
     </div>

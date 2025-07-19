@@ -40,7 +40,7 @@ const AdminSidebar = ({
     },
     {
       id: "dashboard",
-      label: "Admin Dashboard",
+      label: "Dashboard",
       icon: Home,
       path: "/dashboard/admin",
     },
@@ -49,12 +49,6 @@ const AdminSidebar = ({
       label: "Courses",
       icon: BookOpen,
       path: "/courses",
-    },
-    {
-      id: "settings",
-      label: "Settings",
-      icon: Settings,
-      path: "/admin/settings",
     },
   ];
 
@@ -233,6 +227,13 @@ const AdminSidebar = ({
 
         {/* Logout Section */}
         <div className="p-4 border-t border-blue-700">
+          <button
+            onClick={() => navigate("/dashboard/admin/settings")}
+            className="w-full flex items-center px-3 py-2 rounded-lg font-medium text-blue-100 hover:bg-blue-700 hover:text-white transition-colors mb-2"
+          >
+            <Settings className="w-5 h-5" />
+            {isExpanded && <span className="ml-3">Settings</span>}
+          </button>
           <button
             onClick={handleLogout}
             className="w-full flex items-center px-3 py-2 rounded-lg font-medium text-blue-100 hover:bg-blue-700 hover:text-white transition-colors"

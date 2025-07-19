@@ -91,6 +91,11 @@ const LoginForm = () => {
         localStorage.setItem("role", data.role);
       }
       localStorage.setItem("userEmail", form.email);
+      // Always set userName for all users
+      localStorage.setItem(
+        "userName",
+        data.user?.name || form.email.split("@")[0]
+      );
 
       // Track login activity for admin dashboard
       const loginActivity = {

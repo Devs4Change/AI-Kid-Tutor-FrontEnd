@@ -34,6 +34,7 @@ import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
 import AppWrapper from "./components/AppWrapper";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import AdminSettings from "./pages/dashboard/AdminSettings";
 
 function RequireAdmin() {
   const isAdmin =
@@ -139,6 +140,10 @@ function App() {
                 {
                   path: "admin",
                   element: <AdminDashboard />,
+                },
+                {
+                  path: "admin/settings",
+                  element: <AdminSettings />,
                 },
               ],
             },
