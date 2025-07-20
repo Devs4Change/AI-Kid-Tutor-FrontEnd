@@ -44,12 +44,7 @@ const AdminSidebar = ({
       icon: Home,
       path: "/dashboard/admin",
     },
-    {
-      id: "courses",
-      label: "Courses",
-      icon: BookOpen,
-      path: "/courses",
-    },
+    // Removed Courses item
   ];
 
   const toggleMenu = (menuId) => {
