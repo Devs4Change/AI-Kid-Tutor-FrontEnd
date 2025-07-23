@@ -473,8 +473,13 @@ const AdminDashboard = () => {
           const updatedCourses = await getCourses();
           setCourses(updatedCourses);
           setSuccess("Course updated successfully!");
-          setTimeout(() => setSuccess(null), 3000);
-          break;
+          setTimeout(() => {
+            setSuccess(null);
+            setShowEditModal(false);
+            setEditingItem(null);
+            setFormData({});
+          }, 5000);
+          return;
         case "achievement":
           updatedItem = await updateAchievement(id, formData, token);
           setAchievements(
@@ -482,7 +487,14 @@ const AdminDashboard = () => {
               achievement._id === id ? updatedItem : achievement
             )
           );
-          break;
+          setSuccess("Achievement updated successfully!");
+          setTimeout(() => {
+            setSuccess(null);
+            setShowEditModal(false);
+            setEditingItem(null);
+            setFormData({});
+          }, 5000);
+          return;
         default:
           break;
       }
@@ -1312,6 +1324,12 @@ const AdminDashboard = () => {
         {showEditModal && editingItem && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg w-full max-w-md flex flex-col max-h-[90vh]">
+              {/* Success message for update */}
+              {success && (
+                <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded m-4 mb-0">
+                  {success}
+                </div>
+              )}
               <h3 className="text-lg font-bold mb-4 p-6 pb-0 flex-shrink-0">
                 Edit{" "}
                 {activeTab.slice(0, -1).charAt(0).toUpperCase() +
@@ -1481,6 +1499,147 @@ const AdminDashboard = () => {
                       }}
                       className="w-full p-2 border border-gray-300 rounded"
                     />
+                    {/* Dynamic Lessons Array (Edit) */}
+                    <div className="border rounded p-2 mt-4">
+                      <div className="font-semibold mb-2 text-sm">Lessons</div>
+                      {(formData.lessons || []).map((lesson, idx) => (
+                        <div key={idx} className="mb-4 border-b pb-3">
+                          <div className="grid grid-cols-2 gap-2 mb-2">
+                            <input
+                              type="text"
+                              placeholder="Lesson Title"
+                              value={lesson.title || ""}
+                              onChange={(e) => {
+                                const updated = [...formData.lessons];
+                                updated[idx].title = e.target.value;
+                                setFormData({ ...formData, lessons: updated });
+                              }}
+                              className="w-full p-2 border border-gray-200 rounded text-sm"
+                              required
+                            />
+                            <input
+                              type="text"
+                              placeholder="Duration (e.g., 30 minutes)"
+                              value={lesson.duration || ""}
+                              onChange={(e) => {
+                                const updated = [...formData.lessons];
+                                updated[idx].duration = e.target.value;
+                                setFormData({ ...formData, lessons: updated });
+                              }}
+                              className="w-full p-2 border border-gray-200 rounded text-sm"
+                            />
+                          </div>
+                          {/* Lesson Content Structure */}
+                          <div className="space-y-2">
+                            <textarea
+                              placeholder="Explanation"
+                              value={lesson.content?.explanation || ""}
+                              onChange={(e) => {
+                                const updated = [...formData.lessons];
+                                if (!updated[idx].content)
+                                  updated[idx].content = {};
+                                updated[idx].content.explanation =
+                                  e.target.value;
+                                setFormData({ ...formData, lessons: updated });
+                              }}
+                              className="w-full p-2 border border-gray-200 rounded text-sm"
+                              rows="2"
+                            />
+                            <input
+                              type="text"
+                              placeholder="Examples (comma-separated)"
+                              value={lesson.content?.examplesInput || ""}
+                              onChange={(e) => {
+                                const examplesArray = e.target.value
+                                  .split(",")
+                                  .map((example) => example.trim())
+                                  .filter((example) => example);
+                                const updated = [...formData.lessons];
+                                if (!updated[idx].content)
+                                  updated[idx].content = {};
+                                updated[idx].content.examples = examplesArray;
+                                updated[idx].content.examplesInput =
+                                  e.target.value;
+                                setFormData({ ...formData, lessons: updated });
+                              }}
+                              className="w-full p-2 border border-gray-200 rounded text-sm"
+                            />
+                            <input
+                              type="text"
+                              placeholder="Activity"
+                              value={lesson.content?.activity || ""}
+                              onChange={(e) => {
+                                const updated = [...formData.lessons];
+                                if (!updated[idx].content)
+                                  updated[idx].content = {};
+                                updated[idx].content.activity = e.target.value;
+                                setFormData({ ...formData, lessons: updated });
+                              }}
+                              className="w-full p-2 border border-gray-200 rounded text-sm"
+                            />
+                            <input
+                              type="text"
+                              placeholder="Key Concepts (comma-separated)"
+                              value={lesson.content?.key_conceptsInput || ""}
+                              onChange={(e) => {
+                                const conceptsArray = e.target.value
+                                  .split(",")
+                                  .map((concept) => concept.trim())
+                                  .filter((concept) => concept);
+                                const updated = [...formData.lessons];
+                                if (!updated[idx].content)
+                                  updated[idx].content = {};
+                                updated[idx].content.key_concepts =
+                                  conceptsArray;
+                                updated[idx].content.key_conceptsInput =
+                                  e.target.value;
+                                setFormData({ ...formData, lessons: updated });
+                              }}
+                              className="w-full p-2 border border-gray-200 rounded text-sm"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            className="text-xs text-red-500 mt-2"
+                            onClick={() => {
+                              const updated = [...formData.lessons];
+                              updated.splice(idx, 1);
+                              setFormData({ ...formData, lessons: updated });
+                            }}
+                          >
+                            Remove Lesson
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="text-xs text-blue-600 border border-blue-300 rounded px-2 py-1"
+                        onClick={() => {
+                          setFormData({
+                            ...formData,
+                            lessons: [
+                              ...(formData.lessons || []),
+                              {
+                                title: "",
+                                duration: "",
+                                content: {
+                                  explanation: "",
+                                  examples: [],
+                                  activity: "",
+                                  key_concepts: [],
+                                },
+                              },
+                            ],
+                          });
+                        }}
+                      >
+                        + Add Lesson
+                      </button>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Each lesson requires a title. Content fields are optional
+                      but recommended for better learning experience.
+                    </div>
                   </>
                 )}
                 {activeTab === "achievements" && (
